@@ -25,6 +25,32 @@ def _gen_ref() -> str:
     return f"GWR-{uuid.uuid4().hex[:8].upper()}"
 
 
+async def _resolve_adjudicator_row(db: AsyncSession, user: User) -> "AdminAdjudicator | None":
+    """Look up the AdminAdjudicator row for the logged-in user.
+
+    Tries user_id first, then falls back to a case-insensitive email match —
+    seeded adjudicator rows often have ``user_id=NULL`` even though the
+    matching User account exists. When found via email, the user_id is
+    backfilled so future lookups hit the fast path.
+    """
+    row = (await db.execute(
+        select(AdminAdjudicator).where(AdminAdjudicator.user_id == user.id)
+    )).scalar_one_or_none()
+    if row:
+        return row
+    if user.email:
+        row = (await db.execute(
+            select(AdminAdjudicator).where(
+                AdminAdjudicator.email.ilike(user.email)
+            )
+        )).scalar_one_or_none()
+        if row and not row.user_id:
+            row.user_id = user.id
+            await db.commit()
+            await db.refresh(row)
+    return row
+
+
 @router.get("", response_model=List[AttemptOut])
 async def list_attempts(
     db: AsyncSession = Depends(get_db),
@@ -36,10 +62,8 @@ async def list_attempts(
 
     if user.role == "adjudicator":
         # An adjudicator only sees attempts filed under events they are
-        # assigned to (via AdminAdjudicator.user_id → AdminAssignment.event_id).
-        adj_row = (await db.execute(
-            select(AdminAdjudicator).where(AdminAdjudicator.user_id == user.id)
-        )).scalar_one_or_none()
+        # assigned to (via AdminAdjudicator → AdminAssignment.event_id).
+        adj_row = await _resolve_adjudicator_row(db, user)
         if not adj_row:
             return []
         event_ids = [
@@ -57,6 +81,60 @@ async def list_attempts(
     return result.scalars().all()
 
 
+@router.get("/my-events", response_model=List[AdminEventOut])
+async def list_my_assigned_events(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Events the logged-in adjudicator has been assigned to by an admin.
+
+    Returns the assigned events regardless of whether organizers have
+    filed any Attempts yet, so newly-assigned adjudicators can see them
+    in their dashboard immediately.
+    """
+    if user.role != "adjudicator":
+        return []
+    adj_row = await _resolve_adjudicator_row(db, user)
+    if not adj_row:
+        return []
+    event_ids = [
+        row.event_id for row in (await db.execute(
+            select(AdminAssignment).where(AdminAssignment.adjudicator_id == adj_row.id)
+        )).scalars().all()
+    ]
+    if not event_ids:
+        return []
+    result = await db.execute(
+        select(AdminEvent).where(AdminEvent.id.in_(event_ids)).order_by(AdminEvent.start_iso)
+    )
+    return result.scalars().all()
+
+
+@router.get("/events/{event_id}/adjudicators")
+async def list_event_adjudicators(
+    event_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Adjudicators assigned to an event. Visible to admin / the event's
+    organizer / any adjudicator. Returns a slim shape with name + role."""
+    rows = (await db.execute(
+        select(AdminAssignment, AdminAdjudicator)
+        .join(AdminAdjudicator, AdminAdjudicator.id == AdminAssignment.adjudicator_id)
+        .where(AdminAssignment.event_id == event_id)
+    )).all()
+    return [
+        {
+            "adjudicator_id": adj.id,
+            "name": adj.name,
+            "email": adj.email,
+            "role": asn.role,
+            "status": asn.status,
+        }
+        for asn, adj in rows
+    ]
+
+
 @router.get("/events/available", response_model=List[AdminEventOut])
 async def list_available_events(
     db: AsyncSession = Depends(get_db),
@@ -64,14 +142,16 @@ async def list_available_events(
 ):
     """Events the logged-in organizer can file an Attempt against.
 
-    Returns events where ``organizer_user_id == user.id`` OR ``organizer_user_id IS NULL``
-    (admin hasn't reserved them for a specific organizer) AND status is open
-    (Draft / Scheduled / Live).
+    Strict ownership: returns ONLY events that an admin has explicitly
+    assigned to the current organizer (``organizer_user_id == user.id``)
+    and that are still open (Draft / Scheduled / Live). Admin users see
+    every open event.
     """
     q = select(AdminEvent).where(
         AdminEvent.status.in_(["Draft", "Scheduled", "Live"]),
-        (AdminEvent.organizer_user_id == user.id) | (AdminEvent.organizer_user_id.is_(None)),
     ).order_by(AdminEvent.start_iso)
+    if user.role != "admin":
+        q = q.where(AdminEvent.organizer_user_id == user.id)
     return (await db.execute(q)).scalars().all()
 
 

@@ -70,6 +70,13 @@ async def assert_attempt_access(attempt, user: User, db: AsyncSession) -> None:
         adj = (await db.execute(
             select(AdminAdjudicator).where(AdminAdjudicator.user_id == user.id)
         )).scalar_one_or_none()
+        if not adj and user.email:
+            adj = (await db.execute(
+                select(AdminAdjudicator).where(AdminAdjudicator.email.ilike(user.email))
+            )).scalar_one_or_none()
+            if adj and not adj.user_id:
+                adj.user_id = user.id
+                await db.commit()
         if adj:
             assigned = (await db.execute(
                 select(AdminAssignment).where(

@@ -64,10 +64,11 @@ function rolePill(role: WitnessRole) {
     independent: { tone: "default", Icon: Users },
     timekeeper: { tone: "gold", Icon: Timer },
   };
-  const { tone, Icon } = map[role];
+  const entry = map[role] ?? map.independent;
+  const { tone, Icon } = entry;
   return (
     <Badge tone={tone}>
-      <Icon className="h-3 w-3" /> {ROLE_LABEL[role]}
+      <Icon className="h-3 w-3" /> {ROLE_LABEL[role] ?? "Witness"}
     </Badge>
   );
 }
@@ -200,24 +201,9 @@ export default function WitnessSystem() {
         title="Digital Witness System"
         subtitle="Invite, track and sign witness statements for the Guinness World Records attempt — entirely online, with auto-generated PDFs."
         actions={
-          <>
-            {attempts.length > 1 && (
-              <select
-                className="input"
-                value={attemptId}
-                onChange={(e) => setAttemptId(e.target.value)}
-              >
-                {attempts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.record_title}
-                  </option>
-                ))}
-              </select>
-            )}
-            <Button variant="gold" onClick={() => setAdding(true)} disabled={!attemptId}>
-              <UserPlus className="h-4 w-4" /> Add witness
-            </Button>
-          </>
+          <Button variant="gold" onClick={() => setAdding(true)} disabled={!attemptId}>
+            <UserPlus className="h-4 w-4" /> Add witness
+          </Button>
         }
       />
 
@@ -233,6 +219,23 @@ export default function WitnessSystem() {
         </Card>
       ) : (
         <>
+          {attempts.length > 1 && (
+            <div className="flex items-center gap-2">
+              <label className="text-[11px] uppercase tracking-wider text-muted font-semibold">Attempt</label>
+              <select
+                className="input max-w-md"
+                value={attemptId}
+                onChange={(e) => setAttemptId(e.target.value)}
+              >
+                {attempts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.record_title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <Card className="!p-4">
@@ -289,7 +292,10 @@ export default function WitnessSystem() {
             {filtered.map((w) => {
               const uiStatus = backendStatusToUi(w.status);
               const Icon = STATUS_ICON[uiStatus];
-              const role = (w.role as WitnessRole) ?? "independent";
+              const role: WitnessRole =
+                w.role === "specialist" || w.role === "independent" || w.role === "timekeeper"
+                  ? w.role
+                  : "independent";
               const { firstName, lastName } = splitName(w.full_name);
               const inviteUrl = w.token ? `${window.location.origin}/witness/sign/${w.token}` : "";
               return (

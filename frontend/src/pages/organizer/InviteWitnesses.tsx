@@ -13,8 +13,8 @@ export default function InviteWitnesses() {
   const me = useAppSelector((s) => s.auth.user);
   const allInvitations = useAppSelector((s) => s.invitations.items);
 
-  const [attemptId, setAttemptId] = useState(attempts[0].id);
-  const attempt = attempts.find((a) => a.id === attemptId)!;
+  const [attemptId, setAttemptId] = useState(attempts[0]?.id ?? "");
+  const attempt = attempts.find((a) => a.id === attemptId);
   const [drafts, setDrafts] = useState<Draft[]>([{ id: 1, name: "", email: "", expertise: "" }]);
   const [justSent, setJustSent] = useState<Invitation[]>([]);
   const [previewing, setPreviewing] = useState<Invitation | null>(null);
@@ -77,6 +77,7 @@ export default function InviteWitnesses() {
             <label className="block">
               <span className="text-[11px] uppercase tracking-wider text-muted">Attempt</span>
               <select className="input mt-1" value={attemptId} onChange={(e) => setAttemptId(e.target.value)}>
+                {attempts.length === 0 && <option value="">No attempts available</option>}
                 {attempts.map((a) => <option key={a.id} value={a.id}>{a.id} — {a.title}</option>)}
               </select>
             </label>
@@ -147,7 +148,7 @@ export default function InviteWitnesses() {
         {/* RIGHT — already invited for selected attempt */}
         <Card>
           <h3 className="font-semibold text-soft">Invitations for this attempt</h3>
-          <p className="text-xs text-muted mt-1 truncate">{attempt.title}</p>
+          <p className="text-xs text-muted mt-1 truncate">{attempt?.title ?? "No attempt selected"}</p>
           <ul className="mt-4 divide-y divide-line max-h-[60vh] overflow-y-auto">
             {invitationsForAttempt.length === 0 && (
               <li className="py-8 text-center text-sm text-muted">No invitations sent yet for this attempt.</li>

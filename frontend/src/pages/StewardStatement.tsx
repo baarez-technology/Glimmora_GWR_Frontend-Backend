@@ -13,7 +13,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Badge, Button, Card, CardHeader, Input, PageHeader } from "@/components/ui";
-import { stewards as seed, attemptMeta } from "@/mock-data";
+import { useSubmissionData } from "@/lib/api/useSubmissionData";
 import type { Steward } from "@/mock-data";
 import { formatDate, formatTime } from "@/lib/utils";
 import {
@@ -25,7 +25,9 @@ import {
 const TEMPLATE_URL = "/steward-statement-template-2022.pdf";
 
 export default function StewardStatement() {
-  const [list, setList] = useState<Steward[]>(seed);
+  const { stewards: seed, attemptMeta, loading } = useSubmissionData();
+  const [list, setList] = useState<Steward[]>([]);
+  useEffect(() => { setList(seed); }, [seed]);
   const [idx, setIdx] = useState(0);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState({
@@ -165,9 +167,14 @@ export default function StewardStatement() {
 
   if (!s) {
     return (
-      <Card>
-        <div className="text-muted">No stewards added yet.</div>
-      </Card>
+      <div className="space-y-6">
+        <PageHeader title="Steward Statement" subtitle="Stewards declare their oversight of specific aspects of the attempt." />
+        <Card>
+          <div className="py-12 text-center text-sm text-muted">
+            {loading ? "Loading stewards…" : "No stewards yet. Invite witnesses with the role \"Steward\" from the Witness System page; their statements will appear here."}
+          </div>
+        </Card>
+      </div>
     );
   }
 

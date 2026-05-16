@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  CheckCircle2, X, MessageSquareWarning, Search, Loader2, Mail,
+  CheckCircle2, X, MessageSquareWarning, Search, Loader2, Mail, Pencil,
 } from "lucide-react";
 import { Badge, Card, PageHeader, Button } from "@/components/ui";
 import { attemptsApi, witnessesApi, statementsApi } from "@/lib/api/resources";
@@ -45,6 +45,8 @@ export default function WitnessReviews() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [actingId, setActingId] = useState<string | null>(null);
+  const [editingDecisionFor, setEditingDecisionFor] = useState<string | null>(null);
+  const [justSavedId, setJustSavedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,6 +111,11 @@ export default function WitnessReviews() {
       const updated = await witnessesApi.review(selected.attempt_id, selected.id, { decision, note: note || undefined });
       setWitnesses((arr) => arr.map((w) => (w.id === updated.id ? updated : w)));
       setNote("");
+      setEditingDecisionFor(null);
+      setJustSavedId(updated.id);
+      window.setTimeout(() => {
+        setJustSavedId((cur) => (cur === updated.id ? null : cur));
+      }, 4000);
     } catch (e: any) {
       setError(e?.message ?? "Review failed");
     } finally {
@@ -224,21 +231,51 @@ export default function WitnessReviews() {
                 )}
 
                 <div className="mt-6">
-                  <label className="block">
-                    <span className="text-[11px] uppercase tracking-wider text-muted">Decision note (optional)</span>
-                    <textarea className="input mt-1 min-h-[80px]" placeholder="Add context for your decision…" value={note} onChange={(e) => setNote(e.target.value)} />
-                  </label>
-                  <div className="mt-3 flex flex-wrap gap-2 justify-end">
-                    <Button variant="outline" onClick={() => review("clarification_requested")} disabled={actingId === selected.id}>
-                      <MessageSquareWarning className="h-4 w-4" /> Request clarification
-                    </Button>
-                    <Button variant="outline" onClick={() => review("rejected")} disabled={actingId === selected.id}>
-                      <X className="h-4 w-4" /> Reject
-                    </Button>
-                    <Button variant="gold" onClick={() => review("approved")} disabled={actingId === selected.id}>
-                      {actingId === selected.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Approve
-                    </Button>
-                  </div>
+                  {justSavedId === selected.id && (
+                    <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm px-3 py-2 inline-flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4" /> Decision saved.
+                    </div>
+                  )}
+
+                  {selected.decision && editingDecisionFor !== selected.id ? (
+                    <div className="rounded-lg border border-line bg-canvas p-4 flex flex-wrap items-center justify-between gap-3">
+                      <div className="text-sm">
+                        <div className="text-[11px] uppercase tracking-wider text-muted font-semibold">Current decision</div>
+                        <div className="mt-1 inline-flex items-center gap-2">
+                          <Badge tone={decisionTone(selected)}>{decisionLabel(selected)}</Badge>
+                          {selected.reviewed_at && (
+                            <span className="text-[11px] text-muted">on {formatDate(selected.reviewed_at)} {formatTime(selected.reviewed_at)}</span>
+                          )}
+                        </div>
+                      </div>
+                      <Button variant="outline" onClick={() => { setEditingDecisionFor(selected.id); setNote(selected.decision_note ?? ""); }}>
+                        <Pencil className="h-4 w-4" /> Change decision
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <label className="block">
+                        <span className="text-[11px] uppercase tracking-wider text-muted">Decision note (optional)</span>
+                        <textarea className="input mt-1 min-h-[80px]" placeholder="Add context for your decision…" value={note} onChange={(e) => setNote(e.target.value)} />
+                      </label>
+                      <div className="mt-3 flex flex-wrap gap-2 justify-end">
+                        {selected.decision && (
+                          <Button variant="ghost" onClick={() => { setEditingDecisionFor(null); setNote(""); }} disabled={actingId === selected.id}>
+                            Cancel
+                          </Button>
+                        )}
+                        <Button variant="outline" onClick={() => review("clarification_requested")} disabled={actingId === selected.id}>
+                          <MessageSquareWarning className="h-4 w-4" /> Request clarification
+                        </Button>
+                        <Button variant="outline" onClick={() => review("rejected")} disabled={actingId === selected.id}>
+                          <X className="h-4 w-4" /> Reject
+                        </Button>
+                        <Button variant="gold" onClick={() => review("approved")} disabled={actingId === selected.id}>
+                          {actingId === selected.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Approve
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </>
             )}

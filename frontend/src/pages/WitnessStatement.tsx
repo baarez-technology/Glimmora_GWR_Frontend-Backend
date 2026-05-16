@@ -13,7 +13,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Badge, Button, Card, CardHeader, PageHeader } from "@/components/ui";
-import { witnesses, attemptMeta } from "@/mock-data";
+import { useSubmissionData } from "@/lib/api/useSubmissionData";
 import type { Witness } from "@/types";
 import { formatDate, formatTime } from "@/lib/utils";
 import {
@@ -27,8 +27,10 @@ const TEMPLATE_URL = "/witness-statement-template-2022.pdf";
 const independents = (w: Witness) => w.role !== "timekeeper";
 
 export default function WitnessStatement() {
-  const list = useMemo(() => witnesses.filter(independents), []);
+  const { witnesses, attemptMeta, loading } = useSubmissionData();
+  const list = useMemo(() => witnesses.filter(independents), [witnesses]);
   const [idx, setIdx] = useState(0);
+  useEffect(() => { if (idx >= list.length) setIdx(0); }, [list.length, idx]);
   const w = list[idx];
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -143,7 +145,33 @@ export default function WitnessStatement() {
     win.document.close();
   };
 
-  if (!w) return null;
+  if (!w) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Witness Statement"
+          subtitle="Official GWR Witness Statement document for each independent / specialist witness — auto-built from form data and digital signature."
+        />
+        <Card>
+          <div className="py-12 text-center">
+            <FileWarning className="h-8 w-8 text-muted mx-auto mb-3" />
+            <h3 className="font-semibold text-soft">{loading ? "Loading witnesses…" : "No witnesses to render"}</h3>
+            {!loading && (
+              <>
+                <p className="text-sm text-muted mt-1 max-w-md mx-auto">
+                  Add independent or specialist witnesses in the <strong>Witness System</strong> page first.
+                  Once they're invited and complete the form, their official GWR Witness Statement will appear here.
+                </p>
+                <Button className="mt-4" onClick={() => window.location.assign("/witnesses")}>
+                  <Mail className="h-4 w-4" /> Open Witness System
+                </Button>
+              </>
+            )}
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

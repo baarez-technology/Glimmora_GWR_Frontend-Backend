@@ -202,6 +202,10 @@ async def review_witness(
     witness.reviewed_at = datetime.now(timezone.utc)
     if body.decision == "rejected":
         witness.status = "rejected"
+    elif witness.status == "rejected":
+        # Adjudicator reversed a prior rejection (approve / request clarification).
+        # Restore status to "completed" so the witness reappears in normal queues.
+        witness.status = "completed"
     await db.commit()
     await db.refresh(witness)
     await write_audit(

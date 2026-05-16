@@ -55,7 +55,7 @@ export default function TopNavbar() {
 
       <button
         onClick={() => dispatch(setPaletteOpen(true))}
-        className="hidden md:inline-flex items-center gap-2 chip hover:border-royal/40 transition"
+        className="ml-auto hidden md:inline-flex items-center gap-2 chip hover:border-royal/40 transition"
       >
         <Command className="h-3.5 w-3.5 text-royal" />
         Quick actions
@@ -69,7 +69,7 @@ export default function TopNavbar() {
 
       <button
         onClick={() => dispatch(setNotificationsOpen(true))}
-        className="btn-ghost relative !p-2"
+        className="btn-ghost relative !p-2 ml-auto md:ml-0"
         aria-label="Notifications"
       >
         <Bell className="h-4 w-4" />

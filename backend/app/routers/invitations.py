@@ -17,6 +17,41 @@ from app.services.notification_service import notify
 router = APIRouter(prefix="/invitations", tags=["invitations"])
 
 
+@router.get("/mine")
+async def list_my_invitations(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """All witness invitations addressed to the logged-in user's email.
+
+    Returns the witness rows plus their attempt context so the witness portal
+    can list everything they've been invited to without needing a magic link.
+    """
+    if not user.email:
+        return []
+    rows = (await db.execute(
+        select(Witness).where(Witness.email.ilike(user.email))
+    )).scalars().all()
+    out = []
+    for w in rows:
+        attempt = (await db.execute(select(Attempt).where(Attempt.id == w.attempt_id))).scalar_one_or_none()
+        out.append({
+            "witness_id": w.id,
+            "attempt_id": w.attempt_id,
+            "attempt_title": attempt.record_title if attempt else "",
+            "attempt_location": attempt.location if attempt else None,
+            "attempt_date": attempt.attempt_date if attempt else None,
+            "witness_name": w.full_name,
+            "witness_role": w.role,
+            "status": w.status,
+            "decision": w.decision,
+            "token": w.token,
+            "invited_at": w.invited_at.isoformat() if w.invited_at else None,
+            "completed_at": w.completed_at.isoformat() if w.completed_at else None,
+        })
+    return out
+
+
 @router.get("/{token}")
 async def resolve_invitation(token: str, db: AsyncSession = Depends(get_db)):
     """Public endpoint — resolves a magic-link token to invitation details."""
@@ -35,8 +70,15 @@ async def resolve_invitation(token: str, db: AsyncSession = Depends(get_db)):
         "witness_id": witness.id,
         "attempt_id": witness.attempt_id,
         "attempt_title": attempt.record_title if attempt else "",
+        "attempt_location": attempt.location if attempt else None,
+        "attempt_date": attempt.attempt_date if attempt else None,
+        "attempt_category": attempt.category if attempt else None,
+        "attempt_description": attempt.description if attempt else None,
         "witness_name": witness.full_name,
+        "witness_email": witness.email,
         "witness_role": witness.role,
+        "witness_organisation": witness.organisation,
+        "witness_expertise": witness.expertise,
         "status": witness.status,
     }
 

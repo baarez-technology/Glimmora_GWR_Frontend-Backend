@@ -7,10 +7,12 @@ import {
 import { Badge, Card, Button, Progress } from "@/components/ui";
 import { attempts, witnesses, clarifications, witnessWorkflowSteps } from "@/mock-data/portal";
 import { useAppDispatch, useAppSelector } from "@/redux/store";
-import { markSubmitted, type InvitationStatement } from "@/redux/invitations";
+import { addInvitations, markSubmitted, type InvitationStatement } from "@/redux/invitations";
 import { api } from "@/lib/api";
+import { invitationsApi, type WitnessInvitationOut } from "@/lib/api/resources";
 import { downloadFilledWitnessStatement, type WitnessStatementFill } from "@/lib/witnessStatementPdf";
 import { formatDate } from "@/lib/utils";
+import { Link } from "react-router-dom";
 
 type SigMode = "draw" | "type" | "upload";
 
@@ -23,6 +25,64 @@ export default function WitnessPortal() {
     () => (token ? allInvitations.find((i) => i.token === token) : undefined),
     [token, allInvitations]
   );
+
+  // If the witness opens a magic link (no prior redux state), hydrate from the backend.
+  const [resolveError, setResolveError] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(false);
+  const [backendAttempt, setBackendAttempt] = useState<null | {
+    id: string; title: string; venue: string; city: string; country: string;
+    startISO: string; endISO: string; description: string;
+    organizer: string; category: string; participantCount: number; guidelinesRef: string;
+    witnessIds: string[];
+  }>(null);
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setResolving(true);
+    invitationsApi.resolve(token)
+      .then((r) => {
+        if (cancelled) return;
+        const loc = r.attempt_location ?? "";
+        const parts = loc.split(",").map((s) => s.trim()).filter(Boolean);
+        const city = parts.length >= 2 ? parts[parts.length - 2] : parts[0] ?? "";
+        const country = parts[parts.length - 1] ?? "";
+        const venue = parts.length >= 2 ? parts.slice(0, -2).join(", ") : loc;
+        setBackendAttempt({
+          id: r.attempt_id,
+          title: r.attempt_title,
+          venue: venue || loc,
+          city,
+          country,
+          startISO: r.attempt_date ?? new Date().toISOString(),
+          endISO: r.attempt_date ?? new Date().toISOString(),
+          description: r.attempt_description ?? "",
+          organizer: "GWR Records",
+          category: r.attempt_category ?? "",
+          participantCount: 0,
+          guidelinesRef: "GWR official guidelines",
+          witnessIds: [],
+        });
+        if (!invitation) {
+          dispatch(addInvitations([{
+            id: r.witness_id,
+            token,
+            attemptId: r.attempt_id,
+            witnessName: r.witness_name,
+            witnessEmail: r.witness_email,
+            expertise: r.witness_expertise ?? r.witness_role,
+            status: r.status === "completed" ? "Submitted" : "Pending",
+            sentAt: new Date().toISOString(),
+            organizerName: "",
+          }]));
+        }
+      })
+      .catch((e: any) => {
+        if (!cancelled) setResolveError(e?.message ?? "Could not resolve invitation");
+      })
+      .finally(() => { if (!cancelled) setResolving(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   // Invitation-driven witness identity (magic link) overrides the logged-in witness.
   // Mock arrays may be empty (real data lives in the backend); provide safe fallbacks
@@ -48,12 +108,18 @@ export default function WitnessPortal() {
   const [attemptId, setAttemptId] = useState(
     invitation?.attemptId ?? myAttempts[0]?.id ?? attempts[0]?.id ?? ""
   );
-  const attempt = attempts.find((a) => a.id === attemptId) ?? attempts[0] ?? FALLBACK_ATTEMPT;
+  useEffect(() => {
+    if (backendAttempt?.id && attemptId !== backendAttempt.id) setAttemptId(backendAttempt.id);
+  }, [backendAttempt?.id]);
+  const attempt = backendAttempt
+    ?? attempts.find((a) => a.id === attemptId)
+    ?? attempts[0]
+    ?? FALLBACK_ATTEMPT;
   const myClarifications = invitation
     ? [] // magic-link visitors don't see legacy mock clarifications
     : clarifications.filter((c) => c.witnessId === me.id && c.status !== "Closed");
 
-  const invalidToken = !!token && !invitation;
+  const invalidToken = !!token && !invitation && !resolving && !!resolveError;
   const alreadySubmitted = invitation?.status === "Submitted" || invitation?.status === "Approved" || invitation?.status === "Rejected";
 
   /* ---------------- form state ---------------- */
@@ -74,6 +140,17 @@ export default function WitnessPortal() {
   const [country, setCountry] = useState(attempt.country);
   const [presentDates, setPresentDates] = useState("");
   const [completedDate, setCompletedDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  // Sync identity fields once an invitation lands (e.g. after backend resolve)
+  useEffect(() => {
+    if (!invitation) return;
+    const name = invitation.witnessName ?? "";
+    const parts = name.trim().split(/\s+/);
+    setFirstName(parts.slice(0, -1).join(" ") || parts[0] || "");
+    setLastName(parts.length > 1 ? parts[parts.length - 1] : "");
+    if (invitation.witnessEmail) setEmail(invitation.witnessEmail);
+    if (invitation.expertise) setExpertise(invitation.expertise);
+  }, [invitation?.token]);
 
   // Re-sync record-derived fields when the witness picks a different attempt
   useEffect(() => {
@@ -97,6 +174,22 @@ export default function WitnessPortal() {
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [showAttemptInfo, setShowAttemptInfo] = useState(true);
+
+  // Logged-in witness (no magic-link token in URL): pull pending invitations
+  // straight from the backend so they can pick one without needing the email.
+  const [myInvitations, setMyInvitations] = useState<WitnessInvitationOut[] | null>(null);
+  const [invitationsLoading, setInvitationsLoading] = useState(false);
+  const loggedInWithoutToken = !!user && !token;
+  useEffect(() => {
+    if (!loggedInWithoutToken) return;
+    let cancelled = false;
+    setInvitationsLoading(true);
+    invitationsApi.mine()
+      .then((rows) => { if (!cancelled) setMyInvitations(rows); })
+      .catch(() => { if (!cancelled) setMyInvitations([]); })
+      .finally(() => { if (!cancelled) setInvitationsLoading(false); });
+    return () => { cancelled = true; };
+  }, [loggedInWithoutToken]);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
@@ -237,7 +330,79 @@ export default function WitnessPortal() {
     }
   }
 
-  /* ---------------- no invitation & no data: friendly empty state ---------------- */
+  /* ---------------- logged-in witness without a magic-link token: show their invitations ---------------- */
+  if (loggedInWithoutToken && !invitation) {
+    if (invitationsLoading || myInvitations === null) {
+      return (
+        <Card className="text-center py-14">
+          <Loader2 className="h-6 w-6 animate-spin text-muted mx-auto" />
+          <p className="text-sm text-muted mt-3">Loading your invitations…</p>
+        </Card>
+      );
+    }
+    if (myInvitations.length === 0) {
+      return (
+        <Card className="text-center py-14">
+          <div className="mx-auto h-14 w-14 rounded-full bg-royal/10 text-royal flex items-center justify-center mb-4">
+            <Mail className="h-7 w-7" />
+          </div>
+          <h2 className="text-xl font-bold text-soft">No witness invitations yet</h2>
+          <p className="text-sm text-muted mt-2 max-w-md mx-auto">
+            When an organizer invites you to witness a Guinness World Records attempt, your invitation will appear here automatically. You'll also receive an email with a secure sign-in link.
+          </p>
+          <p className="text-[11px] text-muted mt-4">
+            Signed in as <span className="font-semibold text-soft">{user?.email}</span>. Organizers must invite this exact email.
+          </p>
+        </Card>
+      );
+    }
+    return (
+      <div className="space-y-4">
+        <Card>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-soft">Your witness invitations</h2>
+              <p className="text-sm text-muted mt-1">{myInvitations.length} invitation{myInvitations.length === 1 ? "" : "s"} addressed to {user?.email}.</p>
+            </div>
+            <Badge tone="blue">{myInvitations.filter((i) => i.status !== "completed").length} pending</Badge>
+          </div>
+        </Card>
+        <ul className="space-y-3">
+          {myInvitations.map((inv) => {
+            const done = inv.status === "completed";
+            const decision = inv.decision;
+            return (
+              <Card key={inv.witness_id}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[10px] uppercase tracking-wider text-muted font-semibold">{inv.witness_role}</div>
+                    <div className="font-semibold text-soft text-base mt-0.5">{inv.attempt_title || "Untitled attempt"}</div>
+                    <div className="text-[12px] text-muted mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                      {inv.attempt_location && <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" /> {inv.attempt_location}</span>}
+                      {inv.attempt_date && <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatDate(inv.attempt_date)}</span>}
+                      {inv.invited_at && <span>Invited {formatDate(inv.invited_at)}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge tone={decision === "approved" ? "green" : decision === "rejected" ? "red" : done ? "blue" : "amber"}>
+                      {decision ?? (done ? "Submitted" : inv.status === "invited" ? "Pending" : inv.status)}
+                    </Badge>
+                    {inv.token && !done && (
+                      <Link to={`/witness/invite/${inv.token}`}>
+                        <Button variant="gold"><Send className="h-4 w-4" /> Open invitation</Button>
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  }
+
+  /* ---------------- no invitation & no data: friendly empty state (legacy / public) ---------------- */
   if (!token && !invitation && attempts.length === 0) {
     return (
       <Card className="text-center py-14">
@@ -252,6 +417,16 @@ export default function WitnessPortal() {
         <p className="text-[11px] text-muted mt-4">
           If you were expecting an invitation, check your inbox (and spam folder) for an email from <span className="font-semibold text-soft">GWR Records</span>.
         </p>
+      </Card>
+    );
+  }
+
+  /* ---------------- token present, still resolving ---------------- */
+  if (token && !invitation && resolving) {
+    return (
+      <Card className="text-center py-14">
+        <Loader2 className="h-6 w-6 animate-spin text-muted mx-auto" />
+        <p className="text-sm text-muted mt-3">Opening your invitation…</p>
       </Card>
     );
   }

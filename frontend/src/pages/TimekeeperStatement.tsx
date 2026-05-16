@@ -14,7 +14,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { Badge, Button, Card, CardHeader, PageHeader } from "@/components/ui";
-import { witnesses, attemptMeta, activityRows, restRows } from "@/mock-data";
+import { activityRows, restRows } from "@/mock-data";
+import { useSubmissionData } from "@/lib/api/useSubmissionData";
 import type { Witness } from "@/types";
 import { formatDate, formatTime } from "@/lib/utils";
 import { buildLogbook, fmtDuration } from "@/lib/gwr";
@@ -27,12 +28,14 @@ import {
 const TEMPLATE_URL = "/timekeeper-statement-template-2022.pdf";
 
 export default function TimekeeperStatement() {
-  const list = useMemo(() => witnesses.filter((w: Witness) => w.role === "timekeeper"), []);
+  const { witnesses, attemptMeta, loading } = useSubmissionData();
+  const list = useMemo(() => witnesses.filter((w: Witness) => w.role === "timekeeper"), [witnesses]);
   const [idx, setIdx] = useState(0);
+  useEffect(() => { if (idx >= list.length) setIdx(0); }, [list.length, idx]);
   const w = list[idx];
   const printRef = useRef<HTMLDivElement>(null);
 
-  const witnessById = useMemo(() => Object.fromEntries(witnesses.map((wi) => [wi.id, wi])), []);
+  const witnessById = useMemo(() => Object.fromEntries(witnesses.map((wi) => [wi.id, wi])), [witnesses]);
   const log = useMemo(() => buildLogbook(activityRows, restRows, witnessById), [witnessById]);
 
   const fillPayload: TimekeeperStatementFill | null = useMemo(() => {
@@ -142,9 +145,14 @@ export default function TimekeeperStatement() {
 
   if (!w) {
     return (
-      <Card>
-        <div className="text-muted">No timekeepers added yet. Add one in the Witness System.</div>
-      </Card>
+      <div className="space-y-6">
+        <PageHeader title="Timekeeper Statement" subtitle="Two independent timekeepers are required (Rule 9). This page builds their official statements from the master timing log." />
+        <Card>
+          <div className="py-12 text-center text-sm text-muted">
+            {loading ? "Loading timekeepers…" : "No timekeepers yet. Invite a witness with the role \"Timekeeper\" from the Witness System page."}
+          </div>
+        </Card>
+      </div>
     );
   }
 

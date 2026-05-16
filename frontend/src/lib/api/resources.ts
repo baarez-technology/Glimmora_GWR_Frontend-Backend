@@ -16,6 +16,13 @@ export const attemptsApi = {
   health: (id: string) => api.get<SubmissionHealth>(`/attempts/${id}/health`),
   /** Events the logged-in organizer can file an attempt against. */
   availableEvents: () => api.get<AdminEvent[]>("/attempts/events/available"),
+  /** Events the logged-in adjudicator has been assigned to. */
+  myAssignedEvents: () => api.get<AdminEvent[]>("/attempts/my-events"),
+  /** Adjudicators assigned to a given admin event. */
+  eventAdjudicators: (eventId: string) =>
+    api.get<Array<{ adjudicator_id: string; name: string; email: string; role: string; status: string }>>(
+      `/attempts/events/${eventId}/adjudicators`
+    ),
 };
 
 /** /attempts/{id}/witnesses */
@@ -69,6 +76,41 @@ export const analyticsApi = {
 export const searchApi = {
   search: (q: string, attempt_id?: string) =>
     api.post<SearchResult[]>("/search", { q, attempt_id }),
+};
+
+/** /invitations — witness-side */
+export interface WitnessInvitationOut {
+  witness_id: string;
+  attempt_id: string;
+  attempt_title: string;
+  attempt_location: string | null;
+  attempt_date: string | null;
+  witness_name: string;
+  witness_role: string;
+  status: string;
+  decision: string | null;
+  token: string | null;
+  invited_at: string | null;
+  completed_at: string | null;
+}
+
+export const invitationsApi = {
+  mine: () => api.get<WitnessInvitationOut[]>("/invitations/mine"),
+  resolve: (token: string) => api.get<{
+    witness_id: string;
+    attempt_id: string;
+    attempt_title: string;
+    attempt_location: string | null;
+    attempt_date: string | null;
+    attempt_category: string | null;
+    attempt_description: string | null;
+    witness_name: string;
+    witness_email: string;
+    witness_role: string;
+    witness_organisation: string | null;
+    witness_expertise: string | null;
+    status: string;
+  }>(`/invitations/${token}`),
 };
 
 /** /clarifications */

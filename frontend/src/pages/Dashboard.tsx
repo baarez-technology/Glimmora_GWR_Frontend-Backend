@@ -16,12 +16,11 @@ import {
 import { Link } from "react-router-dom";
 import { Badge, Button, Card, CardHeader, PageHeader, Progress } from "@/components/ui";
 import {
-  attemptMeta,
-  witnesses,
   activityRows,
   restRows,
   aiAlerts,
 } from "@/mock-data";
+import { useSubmissionData } from "@/lib/api/useSubmissionData";
 import { buildLogbook, computeSubmissionHealth, fmtAttemptDuration, fmtDuration } from "@/lib/gwr";
 import { formatDate, formatTime } from "@/lib/utils";
 
@@ -35,11 +34,13 @@ const WORKFLOW = [
 ] as const;
 
 export default function Dashboard() {
+  const { attemptMeta, witnesses } = useSubmissionData();
+
   const witnessById = useMemo(() => {
     const m: Record<string, (typeof witnesses)[number]> = {};
     witnesses.forEach((w) => (m[w.id] = w));
     return m;
-  }, []);
+  }, [witnesses]);
 
   const log = useMemo(
     () => buildLogbook(activityRows, restRows, witnessById),
@@ -61,7 +62,7 @@ export default function Dashboard() {
         qualificationsUploaded: true,
         layoutDiagramUploaded: true,
       }),
-    [],
+    [attemptMeta, witnesses],
   );
 
   const witnessStats = {

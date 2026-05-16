@@ -102,13 +102,13 @@ export function PageHeader({
   eyebrow?: string;
 }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end sm:justify-between gap-3 sm:gap-4 mb-6 sm:mb-8 pb-4 sm:pb-5 border-b border-line">
-      <div className="min-w-0">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-6 sm:mb-8 pb-4 sm:pb-5 border-b border-line">
+      <div className="min-w-0 flex-1">
         <div className="text-[10px] uppercase tracking-[0.22em] text-royal font-bold mb-2">{eyebrow}</div>
         <h1 className="text-2xl sm:text-[28px] lg:text-[32px] font-bold tracking-tight text-soft leading-tight">{title}</h1>
         {subtitle && <p className="text-sm text-muted mt-2 max-w-2xl leading-relaxed">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
     </div>
   );
 }

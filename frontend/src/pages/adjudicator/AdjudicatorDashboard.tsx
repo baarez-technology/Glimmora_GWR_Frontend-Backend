@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Users, FileCheck2, AlertTriangle, ShieldCheck, ArrowRight, Activity, Loader2 } from "lucide-react";
+import { Users, FileCheck2, AlertTriangle, ShieldCheck, ArrowRight, Activity, Loader2, Calendar, MapPin } from "lucide-react";
 import { Card, PageHeader, Badge, Progress } from "@/components/ui";
 import StatCard from "@/components/StatCard";
 import { attemptsApi, witnessesApi } from "@/lib/api/resources";
 import type { Attempt, Witness } from "@/lib/api/types";
+import type { AdminEvent } from "@/lib/api/admin";
 import { formatDate } from "@/lib/utils";
 import { useAppSelector } from "@/redux/store";
 
@@ -12,6 +13,7 @@ export default function AdjudicatorDashboard() {
   const user = useAppSelector((s) => s.auth.user);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [witnesses, setWitnesses] = useState<Witness[]>([]);
+  const [assignedEvents, setAssignedEvents] = useState<AdminEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,9 +21,13 @@ export default function AdjudicatorDashboard() {
     let cancelled = false;
     (async () => {
       try {
-        const list = await attemptsApi.list();
+        const [list, events] = await Promise.all([
+          attemptsApi.list(),
+          attemptsApi.myAssignedEvents().catch(() => [] as AdminEvent[]),
+        ]);
         if (cancelled) return;
         setAttempts(list);
+        setAssignedEvents(events);
         const all: Witness[] = [];
         for (const a of list) {
           try { all.push(...(await witnessesApi.list(a.id))); } catch { /* skip */ }
@@ -68,11 +74,46 @@ export default function AdjudicatorDashboard() {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard label="Pending review" value={stats.pending} Icon={FileCheck2} tone="blue" />
+            <StatCard label="Assigned events" value={assignedEvents.length} Icon={Calendar} tone="blue" />
             <StatCard label="Active attempts" value={attempts.length} Icon={Activity} tone="gold" />
-            <StatCard label="Rejected" value={stats.rejected} Icon={AlertTriangle} tone="red" />
+            <StatCard label="Pending review" value={stats.pending} Icon={FileCheck2} tone="blue" />
             <StatCard label="Approved witnesses" value={stats.approved} Icon={ShieldCheck} tone="green" />
           </div>
+
+          {assignedEvents.length > 0 && (
+            <Card className="mt-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-soft">My assigned events</h3>
+                <span className="text-xs text-muted">{assignedEvents.length} event{assignedEvents.length === 1 ? "" : "s"}</span>
+              </div>
+              <ul className="divide-y divide-line/60">
+                {assignedEvents.map((ev) => {
+                  const matchingAttempts = attempts.filter((a) => a.event_id === ev.id);
+                  const venue = [ev.venue, ev.city, ev.country].filter(Boolean).join(", ");
+                  return (
+                    <li key={ev.id} className="py-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-soft truncate">{ev.title}</div>
+                        <div className="text-[11px] text-muted truncate flex items-center gap-2 mt-0.5">
+                          <span>{ev.category}</span>
+                          {venue && (<><span>·</span><MapPin className="h-3 w-3" /><span className="truncate">{venue}</span></>)}
+                          {ev.start_iso && (<><span>·</span><span>{formatDate(ev.start_iso)}</span></>)}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 flex items-center gap-2">
+                        <Badge tone={ev.status === "Live" ? "green" : ev.status === "Scheduled" ? "blue" : ev.status === "Completed" ? "amber" : "default" as any}>
+                          {ev.status}
+                        </Badge>
+                        <Badge tone={matchingAttempts.length > 0 ? "green" : "amber"}>
+                          {matchingAttempts.length} attempt{matchingAttempts.length === 1 ? "" : "s"}
+                        </Badge>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-6">
             <Card className="lg:col-span-2">

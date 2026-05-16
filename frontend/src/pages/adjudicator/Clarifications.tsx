@@ -6,10 +6,27 @@ import { formatDate, formatTime } from "@/lib/utils";
 
 export default function Clarifications() {
   const [q, setQ] = useState("");
-  const [active, setActive] = useState(clarifications[0].id);
+  const [active, setActive] = useState<string | null>(clarifications[0]?.id ?? null);
   const [reply, setReply] = useState("");
   const list = clarifications.filter((c) => `${c.subject} ${c.to}`.toLowerCase().includes(q.toLowerCase()));
-  const c = clarifications.find((x) => x.id === active) ?? clarifications[0];
+  const c = clarifications.find((x) => x.id === active) ?? clarifications[0] ?? null;
+
+  if (!c) {
+    return (
+      <>
+        <PageHeader eyebrow="Adjudicator" title="Clarifications" subtitle="Threaded follow-ups with witnesses and organizers." />
+        <Card>
+          <div className="py-12 text-center">
+            <MessageSquareWarning className="h-8 w-8 text-muted mx-auto mb-3" />
+            <h3 className="font-semibold text-soft">No clarifications yet</h3>
+            <p className="text-sm text-muted mt-1 max-w-md mx-auto">
+              When you request a clarification from a witness or organizer during a review, the conversation will appear here.
+            </p>
+          </div>
+        </Card>
+      </>
+    );
+  }
 
   return (
     <>
