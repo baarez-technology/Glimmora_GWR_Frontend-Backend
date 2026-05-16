@@ -25,6 +25,9 @@ class AdminEvent(Base):
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     category: Mapped[str] = mapped_column(String(120), default="Other")
     organizer: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # Optional FK to a real organizer User account — when set, that organizer
+    # sees this event in their dashboard and can file an Attempt against it.
+    organizer_user_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("users.id"), nullable=True, index=True)
     venue: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     city: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     country: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)

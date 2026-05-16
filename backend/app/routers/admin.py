@@ -18,15 +18,33 @@ from app.models.admin import (
 )
 from app.models.notification import Notification
 from app.models.user import User
+from app.services.auth_service import hash_password
+from app.services.email_service import send_notification_email
+import secrets
 from app.schemas.admin import (
     AdminEventCreate, AdminEventUpdate, AdminEventOut,
     AdminAdjudicatorCreate, AdminAdjudicatorUpdate, AdminAdjudicatorOut,
     AdminAssignmentCreate, AdminAssignmentUpdate, AdminAssignmentOut,
-    LocationPing, LocationOut, CheckInOut,
+    LocationPing, LocationOut, CheckInOut, AdminUserOut,
 )
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+# ============================================================
+# Users (admin-only roster lookup, used by event/assignment forms)
+# ============================================================
+@router.get("/users", response_model=List[AdminUserOut])
+async def list_users(
+    role: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    q = select(User).order_by(User.created_at.desc())
+    if role:
+        q = q.where(User.role == role)
+    return (await db.execute(q)).scalars().all()
 
 
 # ============================================================
@@ -127,10 +145,48 @@ async def create_adjudicator(
     data = body.model_dump(exclude_unset=True)
     if not data.get("id"):
         data.pop("id", None)
+
+    # Auto-provision a User account so the adjudicator can actually log in.
+    # If admin passed an explicit user_id, link to that; otherwise look up
+    # by email or create a fresh user with a one-time temporary password.
+    user_id = data.get("user_id")
+    temp_password: Optional[str] = None
+    if not user_id and data.get("email"):
+        existing = (await db.execute(select(User).where(User.email == data["email"]))).scalar_one_or_none()
+        if existing:
+            user_id = existing.id
+            if existing.role != "adjudicator":
+                existing.role = "adjudicator"
+        else:
+            temp_password = secrets.token_urlsafe(10)
+            new_user = User(
+                email=data["email"],
+                role="adjudicator",
+                full_name=data.get("name"),
+                password_hash=hash_password(temp_password),
+                is_active=True,
+            )
+            db.add(new_user)
+            await db.flush()
+            user_id = new_user.id
+        data["user_id"] = user_id
+
     a = AdminAdjudicator(**data)
     db.add(a)
     await db.commit()
     await db.refresh(a)
+
+    if temp_password:
+        await send_notification_email(
+            data["email"],
+            "Your GWR Adjudicator account is ready",
+            f"Hello {data.get('name') or ''},<br><br>"
+            f"An administrator has provisioned an adjudicator account for you on the GWR portal.<br><br>"
+            f"<b>Sign in details</b><br>"
+            f"Username: {data['email']}<br>"
+            f"Temporary password: <code>{temp_password}</code><br><br>"
+            f"Please sign in and change your password.",
+        )
     return a
 
 

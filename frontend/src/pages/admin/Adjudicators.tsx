@@ -167,12 +167,12 @@ export default function Adjudicators() {
                 <thead>
                   <tr className="text-[10px] uppercase tracking-wider text-muted text-left">
                     <th className="py-2 pr-4">Adjudicator</th>
-                    <th className="py-2 pr-4">Region</th>
-                    <th className="py-2 pr-4">Specialties</th>
-                    <th className="py-2 pr-4">Rating</th>
+                    <th className="py-2 pr-4 hidden md:table-cell">Region</th>
+                    <th className="py-2 pr-4 hidden lg:table-cell">Specialties</th>
+                    <th className="py-2 pr-4 hidden sm:table-cell">Rating</th>
                     <th className="py-2 pr-4">Workload</th>
-                    <th className="py-2 pr-4">Status</th>
-                    <th className="py-2 pr-4">Field</th>
+                    <th className="py-2 pr-4 hidden sm:table-cell">Status</th>
+                    <th className="py-2 pr-4 hidden xl:table-cell">Field</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -196,9 +196,9 @@ export default function Adjudicators() {
                             </div>
                           </div>
                         </td>
-                        <td className="py-3 pr-4 text-soft">{a.region}</td>
-                        <td className="py-3 pr-4 text-muted">{a.specialties.slice(0, 2).join(", ") || "—"}</td>
-                        <td className="py-3 pr-4">
+                        <td className="py-3 pr-4 text-soft hidden md:table-cell">{a.region}</td>
+                        <td className="py-3 pr-4 text-muted hidden lg:table-cell">{a.specialties.slice(0, 2).join(", ") || "—"}</td>
+                        <td className="py-3 pr-4 hidden sm:table-cell">
                           <span className="inline-flex items-center gap-1 text-soft">
                             <Star className="h-3.5 w-3.5 text-gold fill-gold" /> {a.rating}
                           </span>
@@ -206,10 +206,10 @@ export default function Adjudicators() {
                         <td className="py-3 pr-4">
                           <Badge tone={load === 0 ? "default" : load <= 2 ? "blue" : load <= 4 ? "gold" : "red"}>{load} active</Badge>
                         </td>
-                        <td className="py-3 pr-4">
+                        <td className="py-3 pr-4 hidden sm:table-cell">
                           <Badge tone={a.status === "Active" ? "green" : a.status === "On leave" ? "amber" : "red"}>{a.status}</Badge>
                         </td>
-                        <td className="py-3 pr-4">
+                        <td className="py-3 pr-4 hidden xl:table-cell">
                           {loc ? <Badge tone={TRAVEL_TONE[loc.travel_status]}>{loc.travel_status}</Badge> : <span className="text-[11px] text-muted">—</span>}
                         </td>
                       </tr>

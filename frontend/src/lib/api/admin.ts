@@ -8,6 +8,7 @@ export interface AdminEvent {
   title: string;
   category: string;
   organizer: string | null;
+  organizer_user_id: string | null;
   venue: string | null;
   city: string | null;
   country: string | null;
@@ -102,6 +103,19 @@ export const adminAssignmentsApi = {
   update: (id: string, body: Partial<AdminAssignment>) =>
     api.patch<AdminAssignment>(`/admin/assignments/${id}`, body),
   delete: (id: string) => api.delete(`/admin/assignments/${id}`),
+};
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  role: string;
+  full_name: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export const adminUsersApi = {
+  list: (role?: string) => api.get<AdminUser[]>("/admin/users", { query: { role } }),
 };
 
 export const trackingApi = {

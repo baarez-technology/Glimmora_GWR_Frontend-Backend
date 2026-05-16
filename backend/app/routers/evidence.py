@@ -7,9 +7,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, assert_attempt_access
+from app.models.attempt import Attempt
 from app.models.evidence import Evidence
 from app.models.user import User
+
+
+async def _gate(attempt_id: str, user: User, db: AsyncSession) -> Attempt:
+    attempt = (await db.execute(select(Attempt).where(Attempt.id == attempt_id))).scalar_one_or_none()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    await assert_attempt_access(attempt, user, db)
+    return attempt
 from app.schemas.evidence import EvidenceInitRequest, EvidenceCompleteRequest, UploadUrlResponse, EvidenceOut
 from app.services.storage_service import generate_upload_url, generate_s3_key
 
@@ -23,6 +32,7 @@ async def init_evidence(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    await _gate(attempt_id, user, db)
     evidence_id = str(uuid.uuid4())
     s3_key = None
     upload_url = None
@@ -57,6 +67,7 @@ async def complete_evidence(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    await _gate(attempt_id, user, db)
     result = await db.execute(select(Evidence).where(Evidence.id == evidence_id))
     evidence = result.scalar_one_or_none()
     if not evidence:
@@ -87,6 +98,7 @@ async def list_evidence(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    await _gate(attempt_id, user, db)
     result = await db.execute(select(Evidence).where(Evidence.attempt_id == attempt_id))
     return [_to_out(e) for e in result.scalars().all()]
 

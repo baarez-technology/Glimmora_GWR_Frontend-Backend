@@ -284,7 +284,7 @@ export default function Assignments() {
 
           <div className="mt-4">
             <div className="text-[10px] uppercase tracking-wider text-muted mb-2">Assign as</div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {(["Lead Adjudicator", "Adjudicator", "Observer"] as const).map((r) => (
                 <button key={r} onClick={() => setRole(r)} className={`rounded-lg border px-2.5 py-2 text-[11px] font-semibold transition ${role === r ? "border-royal bg-royal/[0.06] text-royal" : "border-line text-soft hover:border-royal/40"}`}>{r}</button>
               ))}

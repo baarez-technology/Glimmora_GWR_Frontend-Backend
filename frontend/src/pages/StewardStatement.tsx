@@ -280,7 +280,7 @@ export default function StewardStatement() {
             <div className="border-b border-line pb-1">{s.responsibility}</div>
 
             <h2 className="text-[11px] uppercase tracking-[0.18em] text-royal font-bold mt-5 mb-2">3) Shift details</h2>
-            <div className="grid grid-cols-2 gap-3 text-[12.5px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12.5px]">
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted font-semibold">Start</div>
                 <div className="border-b border-line pb-1">
@@ -415,12 +415,12 @@ export default function StewardStatement() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-soft/40 backdrop-blur-sm p-4">
           <Card className="w-full max-w-lg">
             <CardHeader title="Add steward" subtitle={attemptMeta.recordTitle} />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Input placeholder="First name" value={draft.firstName} onChange={(e) => setDraft({ ...draft, firstName: e.target.value })} />
               <Input placeholder="Last name" value={draft.lastName} onChange={(e) => setDraft({ ...draft, lastName: e.target.value })} />
-              <Input className="col-span-2" placeholder="Email" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} />
-              <Input className="col-span-2" placeholder="Organisation" value={draft.organisation} onChange={(e) => setDraft({ ...draft, organisation: e.target.value })} />
-              <Input className="col-span-2" placeholder="Area of responsibility" value={draft.responsibility} onChange={(e) => setDraft({ ...draft, responsibility: e.target.value })} />
+              <Input className="sm:col-span-2" placeholder="Email" value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} />
+              <Input className="sm:col-span-2" placeholder="Organisation" value={draft.organisation} onChange={(e) => setDraft({ ...draft, organisation: e.target.value })} />
+              <Input className="sm:col-span-2" placeholder="Area of responsibility" value={draft.responsibility} onChange={(e) => setDraft({ ...draft, responsibility: e.target.value })} />
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <Button variant="ghost" onClick={() => setAdding(false)}>Cancel</Button>

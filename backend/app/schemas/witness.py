@@ -10,10 +10,16 @@ class WitnessCreate(BaseModel):
     phone: Optional[str] = None
     organisation: Optional[str] = None
     expertise: Optional[str] = None
+    send_email: bool = True  # set false to only generate link without emailing
 
 
 class WitnessBulkCreate(BaseModel):
     witnesses: list[WitnessCreate]
+
+
+class WitnessReview(BaseModel):
+    decision: str  # approved | rejected | clarification_requested
+    note: Optional[str] = None
 
 
 class WitnessUpdate(BaseModel):
@@ -36,8 +42,13 @@ class WitnessOut(BaseModel):
     phone: Optional[str] = None
     organisation: Optional[str] = None
     expertise: Optional[str] = None
+    token: Optional[str] = None
     invited_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+    decision: Optional[str] = None
+    decision_note: Optional[str] = None
+    reviewer_id: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

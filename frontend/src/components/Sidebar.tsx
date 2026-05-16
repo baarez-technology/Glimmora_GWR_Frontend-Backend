@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   ClipboardList,
@@ -38,6 +39,7 @@ import {
   useAppDispatch,
   useAppSelector,
   toggleSidebar,
+  setMobileSidebarOpen,
   logout,
   type Role,
 } from "@/redux/store";
@@ -139,10 +141,21 @@ const NAV_BY_ROLE: Record<Role, { section: string; items: { to: string; label: s
 };
 
 export default function Sidebar() {
-  const collapsed = useAppSelector((s) => s.ui.sidebarCollapsed);
+  const collapsedPref = useAppSelector((s) => s.ui.sidebarCollapsed);
+  const mobileOpen = useAppSelector((s) => s.ui.mobileSidebarOpen);
   const role = useAppSelector((s) => s.auth.user?.role);
   const dispatch = useAppDispatch();
   const sections = role ? NAV_BY_ROLE[role] : [];
+
+  // Force expanded layout on mobile (drawer mode) regardless of stored collapsed preference.
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => setIsDesktop(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  const collapsed = isDesktop ? collapsedPref : false;
 
   const workspaceLabel =
     role === "adjudicator" ? "Adjudicator"
@@ -151,11 +164,25 @@ export default function Sidebar() {
     : role === "admin" ? "Operations Admin"
     : "";
 
+  // On mobile, the drawer is full-width-narrow (260) when open; ignore collapsed state.
+  // On desktop, respect collapsed/expanded width.
+  const widthDesktop = collapsedPref ? 72 : 260;
+
   return (
     <aside
-      className="fixed inset-y-0 left-0 z-30 bg-white border-r border-line transition-[width] duration-300 flex flex-col"
-      style={{ width: collapsed ? 72 : 260 }}
+      className={cn(
+        "fixed inset-y-0 left-0 z-30 bg-white border-r border-line flex flex-col gwr-sidebar",
+        "transition-transform lg:transition-[width,transform] duration-300",
+        mobileOpen ? "translate-x-0" : "-translate-x-full",
+        "lg:translate-x-0"
+      )}
+      style={{ width: 260, ["--gwr-sb-w" as any]: `${widthDesktop}px` }}
     >
+      <style>{`
+        @media (min-width: 1024px) {
+          .gwr-sidebar { width: var(--gwr-sb-w) !important; }
+        }
+      `}</style>
       <div className="h-16 flex items-center px-5 border-b border-line">
         <div className="h-9 w-9 rounded-lg bg-royal flex items-center justify-center shrink-0">
           <Trophy className="h-5 w-5 text-white" />
@@ -167,7 +194,10 @@ export default function Sidebar() {
           </div>
         )}
         <button
-          onClick={() => dispatch(toggleSidebar())}
+          onClick={() => {
+            if (isDesktop) dispatch(toggleSidebar());
+            else dispatch(setMobileSidebarOpen(false));
+          }}
           className="ml-auto btn-ghost !p-1.5"
           aria-label="Toggle sidebar"
         >

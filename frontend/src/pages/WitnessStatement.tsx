@@ -278,7 +278,7 @@ export default function WitnessStatement() {
             <h2 className="text-[11px] uppercase tracking-[0.18em] text-royal font-bold mt-5 mb-2">
               2) Contact details
             </h2>
-            <div className="grid grid-cols-2 gap-3 text-[12.5px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12.5px]">
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted font-semibold">First name</div>
                 <div className="border-b border-line pb-1">{w.firstName}</div>
@@ -314,7 +314,7 @@ export default function WitnessStatement() {
               ))}
             </ul>
 
-            <div className="grid grid-cols-2 gap-3 mt-4 text-[12.5px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 text-[12.5px]">
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted font-semibold">4) Field of expertise</div>
                 <div className="border-b border-line pb-1">{w.expertise}</div>
@@ -328,7 +328,7 @@ export default function WitnessStatement() {
             <h2 className="text-[11px] uppercase tracking-[0.18em] text-royal font-bold mt-5 mb-2">
               6) Where did the record attempt take place?
             </h2>
-            <div className="grid grid-cols-3 gap-3 text-[12.5px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-[12.5px]">
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted font-semibold">Venue</div>
                 <div className="border-b border-line pb-1">{attemptMeta.venue}</div>

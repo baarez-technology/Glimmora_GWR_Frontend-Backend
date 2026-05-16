@@ -8,6 +8,7 @@ import { Badge, Card, Button, Progress } from "@/components/ui";
 import { attempts, witnesses, clarifications, witnessWorkflowSteps } from "@/mock-data/portal";
 import { useAppDispatch, useAppSelector } from "@/redux/store";
 import { markSubmitted, type InvitationStatement } from "@/redux/invitations";
+import { api } from "@/lib/api";
 import { downloadFilledWitnessStatement, type WitnessStatementFill } from "@/lib/witnessStatementPdf";
 import { formatDate } from "@/lib/utils";
 
@@ -23,22 +24,31 @@ export default function WitnessPortal() {
     [token, allInvitations]
   );
 
-  // Invitation-driven witness identity (magic link) overrides the logged-in witness
+  // Invitation-driven witness identity (magic link) overrides the logged-in witness.
+  // Mock arrays may be empty (real data lives in the backend); provide safe fallbacks
+  // so the page renders an empty state instead of crashing.
+  const FALLBACK_WITNESS = {
+    id: "self", firstName: "", lastName: "", email: user?.email ?? "", organization: "", expertise: "", country: "",
+  } as any;
+  const FALLBACK_ATTEMPT = {
+    id: "", title: "", venue: "", city: "", country: "", startISO: new Date().toISOString(), endISO: new Date().toISOString(), witnessIds: [] as string[],
+  } as any;
+
   const me = useMemo(
-    () => witnesses.find((w) => w.email === (invitation?.witnessEmail ?? user?.email)) ?? witnesses[0],
+    () => witnesses.find((w) => w.email === (invitation?.witnessEmail ?? user?.email)) ?? witnesses[0] ?? FALLBACK_WITNESS,
     [invitation, user?.email]
   );
   const myAttempts = useMemo(
     () => (invitation
       ? attempts.filter((a) => a.id === invitation.attemptId)
-      : attempts.filter((a) => a.witnessIds.includes(me.id))),
+      : attempts.filter((a) => a.witnessIds?.includes(me.id))),
     [me.id, invitation]
   );
 
   const [attemptId, setAttemptId] = useState(
-    invitation?.attemptId ?? myAttempts[0]?.id ?? attempts[0].id
+    invitation?.attemptId ?? myAttempts[0]?.id ?? attempts[0]?.id ?? ""
   );
-  const attempt = attempts.find((a) => a.id === attemptId) ?? attempts[0];
+  const attempt = attempts.find((a) => a.id === attemptId) ?? attempts[0] ?? FALLBACK_ATTEMPT;
   const myClarifications = invitation
     ? [] // magic-link visitors don't see legacy mock clarifications
     : clarifications.filter((c) => c.witnessId === me.id && c.status !== "Closed");
@@ -200,15 +210,24 @@ export default function WitnessPortal() {
     setDownloading(true);
     try {
       await handleDownload();
-      // If this is a magic-link visit, record the submission against the invitation
-      // so the adjudicator sees it in their queue.
+      const statement: InvitationStatement = {
+        recordTitle, applicationRef, firstName, lastName, organisation, nationality, email, telephone,
+        witnessDetails, expertise, finalMeasurement, venue, cityTown, country, presentDates,
+        completedISO: new Date(completedDate).toISOString(),
+        signatureDataUrl: buildSignatureDataUrl(),
+      };
+      if (token) {
+        try {
+          await api.post(`/invitations/${token}/statement`, {
+            fields: statement,
+            signature_png: statement.signatureDataUrl,
+          });
+        } catch (e: any) {
+          setDownloadError(e?.message ?? "Failed to submit statement to server.");
+          return;
+        }
+      }
       if (invitation) {
-        const statement: InvitationStatement = {
-          recordTitle, applicationRef, firstName, lastName, organisation, nationality, email, telephone,
-          witnessDetails, expertise, finalMeasurement, venue, cityTown, country, presentDates,
-          completedISO: new Date(completedDate).toISOString(),
-          signatureDataUrl: buildSignatureDataUrl(),
-        };
         dispatch(markSubmitted({ token: invitation.token, statement }));
       }
       setSubmitted(true);
@@ -216,6 +235,25 @@ export default function WitnessPortal() {
     } finally {
       setDownloading(false);
     }
+  }
+
+  /* ---------------- no invitation & no data: friendly empty state ---------------- */
+  if (!token && !invitation && attempts.length === 0) {
+    return (
+      <Card className="text-center py-14">
+        <div className="mx-auto h-14 w-14 rounded-full bg-royal/10 text-royal flex items-center justify-center mb-4">
+          <Mail className="h-7 w-7" />
+        </div>
+        <h2 className="text-xl font-bold text-soft">No witness invitations yet</h2>
+        <p className="text-sm text-muted mt-2 max-w-md mx-auto">
+          When an organizer invites you to witness a Guinness World Records attempt, you'll receive an email with a secure
+          sign-in link. Open the link from that email to access your statement form here.
+        </p>
+        <p className="text-[11px] text-muted mt-4">
+          If you were expecting an invitation, check your inbox (and spam folder) for an email from <span className="font-semibold text-soft">GWR Records</span>.
+        </p>
+      </Card>
+    );
   }
 
   /* ---------------- invalid magic link ---------------- */

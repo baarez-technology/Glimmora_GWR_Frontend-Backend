@@ -174,7 +174,7 @@ export default function CoverLetterBuilder() {
           />
 
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="1) Record Title">
                 <Input value={meta.recordTitle} onChange={(e) => setMeta({ ...meta, recordTitle: e.target.value })} />
               </Field>
@@ -195,7 +195,7 @@ export default function CoverLetterBuilder() {
               <div className="text-[11px] uppercase tracking-wider text-muted font-semibold">
                 5) New record holder
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input placeholder="First Name" value={meta.contactFirstName} onChange={(e) => setMeta({ ...meta, contactFirstName: e.target.value })} />
                 <Input placeholder="Nationality" value={meta.contactNationality} onChange={(e) => setMeta({ ...meta, contactNationality: e.target.value })} />
                 <Input placeholder="Last Name" value={meta.contactLastName} onChange={(e) => setMeta({ ...meta, contactLastName: e.target.value })} />
@@ -209,7 +209,7 @@ export default function CoverLetterBuilder() {
                   <option>Other</option>
                 </select>
                 <Input
-                  className="col-span-2"
+                  className="sm:col-span-2"
                   placeholder="Organization / Team Name"
                   value={meta.teamName}
                   onChange={(e) => setMeta({ ...meta, teamName: e.target.value })}
@@ -227,7 +227,7 @@ export default function CoverLetterBuilder() {
               />
             </Field>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Start date">
                 <Input
                   type="datetime-local"

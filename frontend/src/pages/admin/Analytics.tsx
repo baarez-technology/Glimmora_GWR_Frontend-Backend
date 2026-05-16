@@ -100,7 +100,7 @@ export default function AnalyticsPage() {
         subtitle="Live from the backend — workload, SLA pressure, regional load, and roster performance."
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Roster utilization %" value={utilization} Icon={Users} tone="blue" delta="active vs idle" />
         <StatCard label="Avg rating" value={Number(avgRating)} Icon={Star} tone="gold" />
         <StatCard label="Avg experience (yrs)" value={Number(avgYears)} Icon={TrendingUp} tone="green" />

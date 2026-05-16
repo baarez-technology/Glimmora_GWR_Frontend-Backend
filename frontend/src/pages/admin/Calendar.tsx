@@ -104,7 +104,7 @@ export default function CalendarPage() {
         <div className="overflow-x-auto">
           <div style={{ minWidth: 220 + colWidth * days + 24 }}>
             <div className="flex border-b border-line bg-canvas/60 sticky top-0 z-10">
-              <div className="w-[220px] shrink-0 px-4 py-2 text-[10px] uppercase tracking-wider text-muted font-semibold">Adjudicator</div>
+              <div className="w-[160px] sm:w-[220px] shrink-0 px-4 py-2 text-[10px] uppercase tracking-wider text-muted font-semibold">Adjudicator</div>
               <div className="flex">
                 {dayList.map((d, i) => {
                   const isWeekend = d.getDay() === 0 || d.getDay() === 6;
@@ -126,7 +126,7 @@ export default function CalendarPage() {
 
             {rowsWithConflict.map(({ adj, bars, hasConflict }) => (
               <div key={adj.id} className="flex border-b border-line hover:bg-canvas/30">
-                <div className="w-[220px] shrink-0 px-4 py-3 flex items-center gap-3">
+                <div className="w-[160px] sm:w-[220px] shrink-0 px-4 py-3 flex items-center gap-3">
                   <div className="h-8 w-8 rounded-full bg-royal/10 text-royal flex items-center justify-center text-[10px] font-bold shrink-0">{adj.initials}</div>
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-soft truncate">{adj.name}</div>

@@ -98,6 +98,7 @@ const authSlice = createSlice({
 
 interface UIState {
   sidebarCollapsed: boolean;
+  mobileSidebarOpen: boolean;
   searchOpen: boolean;
   paletteOpen: boolean;
   notificationsOpen: boolean;
@@ -106,12 +107,14 @@ const uiSlice = createSlice({
   name: "ui",
   initialState: {
     sidebarCollapsed: false,
+    mobileSidebarOpen: false,
     searchOpen: false,
     paletteOpen: false,
     notificationsOpen: false,
   } as UIState,
   reducers: {
     toggleSidebar: (s) => { s.sidebarCollapsed = !s.sidebarCollapsed; },
+    setMobileSidebarOpen: (s, a: PayloadAction<boolean>) => { s.mobileSidebarOpen = a.payload; },
     setSearchOpen: (s, a: PayloadAction<boolean>) => { s.searchOpen = a.payload; },
     setPaletteOpen: (s, a: PayloadAction<boolean>) => { s.paletteOpen = a.payload; },
     setNotificationsOpen: (s, a: PayloadAction<boolean>) => { s.notificationsOpen = a.payload; },
@@ -121,6 +124,7 @@ const uiSlice = createSlice({
 export const { login, logout } = authSlice.actions;
 export const {
   toggleSidebar,
+  setMobileSidebarOpen,
   setSearchOpen,
   setPaletteOpen,
   setNotificationsOpen,

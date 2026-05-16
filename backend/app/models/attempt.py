@@ -15,6 +15,7 @@ class Attempt(Base):
     application_ref: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     record_title: Mapped[str] = mapped_column(String(500), nullable=False)
     organizer_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    event_id: Mapped[Optional[str]] = mapped_column(String(64), ForeignKey("admin_events.id"), nullable=True, index=True)
     # status: draft | processing | review | approved | rejected
     status: Mapped[str] = mapped_column(String(50), default="draft")
     category: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

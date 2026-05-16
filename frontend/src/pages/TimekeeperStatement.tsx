@@ -288,7 +288,7 @@ export default function TimekeeperStatement() {
             <h2 className="text-[11px] uppercase tracking-[0.18em] text-royal font-bold mt-5 mb-2">
               3) Recorded times
             </h2>
-            <div className="grid grid-cols-3 gap-3 text-[12.5px]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-[12.5px]">
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted font-semibold">Attempt start</div>
                 <div className="border-b border-line pb-1">{formatDate(attemptMeta.startISO)} {formatTime(attemptMeta.startISO)}</div>

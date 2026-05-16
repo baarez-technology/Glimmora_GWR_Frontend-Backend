@@ -56,7 +56,7 @@ export default function ReportGeneration() {
               </p>
             </section>
 
-            <section className="mt-6 grid grid-cols-3 gap-3">
+            <section className="mt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {[
                 { l: "Participants", v: "12,418" },
                 { l: "Duration", v: "21h 15m" },

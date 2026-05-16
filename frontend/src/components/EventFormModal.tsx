@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Modal from "@/components/Modal";
 import { Button } from "@/components/ui";
 import type { AdminEvent } from "@/lib/api/admin";
+import { adminUsersApi } from "@/lib/api/admin";
 
 interface Props {
   open: boolean;
@@ -31,6 +33,7 @@ function blank(defaultGeofenceM: number): FormState {
     title: "",
     category: "Music & Performing Arts",
     organizer: "",
+    organizer_user_id: null,
     venue: "",
     city: "",
     country: "",
@@ -63,6 +66,13 @@ function inputToIso(v: string): string | null {
 export default function EventFormModal({ open, initial, defaultGeofenceM, onClose, onSubmit, submitting }: Props) {
   const isEdit = !!initial;
   const [form, setForm] = useState<FormState>(() => initial ?? blank(defaultGeofenceM));
+
+  const { data: organizers = [] } = useQuery({
+    queryKey: ["admin", "users", "organizer"],
+    queryFn: () => adminUsersApi.list("organizer"),
+    enabled: open,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
     if (open) setForm(initial ?? blank(defaultGeofenceM));
@@ -101,8 +111,26 @@ export default function EventFormModal({ open, initial, defaultGeofenceM, onClos
           </select>
         </Field>
 
-        <Field label="Organizer">
+        <Field label="Organizer (display)">
           <input className="input" value={form.organizer ?? ""} onChange={(e) => set("organizer", e.target.value)} placeholder="Organization or contact" />
+        </Field>
+
+        <Field label="Organizer account" full>
+          <select
+            className="input"
+            value={form.organizer_user_id ?? ""}
+            onChange={(e) => set("organizer_user_id", e.target.value || null)}
+          >
+            <option value="">— Open to any organizer —</option>
+            {organizers.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.full_name || u.email} · {u.email}
+              </option>
+            ))}
+          </select>
+          <span className="text-[10px] text-muted mt-1 block">
+            Reserves this event for a specific organizer user. They'll see it in their "New submission" picker.
+          </span>
         </Field>
 
         <Field label="Venue" full>

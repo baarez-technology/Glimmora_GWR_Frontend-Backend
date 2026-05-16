@@ -15,6 +15,16 @@ from app.models.admin import (
     AdminEvent, AdminAdjudicator, AdminAssignment,
     AdjudicatorLocation, AdjudicatorCheckIn,
 )
+from app.models.user import User
+from app.services.auth_service import hash_password
+
+
+DEMO_USERS = [
+    dict(email="admin@gwr.com",       password="Admin@123",       role="admin",       full_name="Vaigai Ramesh"),
+    dict(email="organizer@gwr.com",   password="Organizer@123",   role="organizer",   full_name="Aurora Events Organizer"),
+    dict(email="adjudicator@gwr.com", password="Adjudicator@123", role="adjudicator", full_name="Eleanor Whitfield"),
+    dict(email="witness@gwr.com",     password="Witness@123",     role="witness",     full_name="Demo Witness"),
+]
 
 
 EVENTS = [
@@ -113,14 +123,50 @@ LOCATIONS = [
 
 async def upsert():
     async with AsyncSessionLocal() as db:
-        for ev in EVENTS:
+        # 1) Demo users (idempotent by email)
+        user_by_email: dict[str, User] = {}
+        for u in DEMO_USERS:
+            existing = (await db.execute(
+                select(User).where(User.email == u["email"])
+            )).scalar_one_or_none()
+            if existing:
+                user_by_email[u["email"]] = existing
+                continue
+            row = User(
+                email=u["email"],
+                password_hash=hash_password(u["password"]),
+                role=u["role"],
+                full_name=u["full_name"],
+            )
+            db.add(row)
+            user_by_email[u["email"]] = row
+        await db.commit()
+        for row in user_by_email.values():
+            await db.refresh(row)
+
+        organizer_user = user_by_email.get("organizer@gwr.com")
+        adjudicator_user = user_by_email.get("adjudicator@gwr.com")
+
+        # 2) Events — assign first two events to the demo organizer so they
+        # show up in the organizer's "available events" dropdown.
+        for idx, ev in enumerate(EVENTS):
             existing = await db.get(AdminEvent, ev["id"])
-            if not existing:
-                db.add(AdminEvent(**ev))
+            if existing:
+                continue
+            data = dict(ev)
+            if organizer_user and idx < 2:
+                data["organizer_user_id"] = organizer_user.id
+            db.add(AdminEvent(**data))
+
+        # 3) Adjudicator roster — wire ADJ-001 to the demo adjudicator user
         for a in ADJUDICATORS:
             existing = await db.get(AdminAdjudicator, a["id"])
-            if not existing:
-                db.add(AdminAdjudicator(**a))
+            if existing:
+                continue
+            data = dict(a)
+            if a["id"] == "ADJ-001" and adjudicator_user:
+                data["user_id"] = adjudicator_user.id
+            db.add(AdminAdjudicator(**data))
         await db.commit()
 
         for asn in ASSIGNMENTS:

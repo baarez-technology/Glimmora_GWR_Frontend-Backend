@@ -8,7 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, assert_attempt_access
+from app.models.attempt import Attempt
 from app.models.statement import Statement
 from app.models.user import User
 from app.schemas.statement import StatementSubmit, StatementOut, PDFDownloadResponse
@@ -53,6 +54,10 @@ async def list_statements(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    attempt = (await db.execute(select(Attempt).where(Attempt.id == attempt_id))).scalar_one_or_none()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    await assert_attempt_access(attempt, user, db)
     result = await db.execute(select(Statement).where(Statement.attempt_id == attempt_id))
     statements = result.scalars().all()
     out = []

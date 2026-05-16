@@ -204,14 +204,14 @@ export default function Events() {
             <h3 className="font-semibold text-soft">Event roster</h3>
             <Badge tone="default">{filtered.length}</Badge>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+            <div className="relative w-full sm:w-auto">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted" />
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search title, city, category…"
-                className="input pl-8 py-1.5 text-sm w-64"
+                className="input pl-8 py-1.5 text-sm w-full sm:w-64"
               />
             </div>
             <div className="relative">
@@ -260,12 +260,12 @@ export default function Events() {
               <thead>
                 <tr className="text-[10px] uppercase tracking-wider text-muted text-left">
                   <th className="py-2 pr-4">Event</th>
-                  <th className="py-2 pr-4">Location</th>
-                  <th className="py-2 pr-4">When</th>
-                  <th className="py-2 pr-4">SLA</th>
-                  <th className="py-2 pr-4">Priority</th>
+                  <th className="py-2 pr-4 hidden md:table-cell">Location</th>
+                  <th className="py-2 pr-4 hidden sm:table-cell">When</th>
+                  <th className="py-2 pr-4 hidden xl:table-cell">SLA</th>
+                  <th className="py-2 pr-4 hidden lg:table-cell">Priority</th>
                   <th className="py-2 pr-4">Status</th>
-                  <th className="py-2 pr-4">Staffing</th>
+                  <th className="py-2 pr-4 hidden md:table-cell">Staffing</th>
                   <th className="py-2 pr-4"></th>
                 </tr>
               </thead>
@@ -284,13 +284,13 @@ export default function Events() {
                         <div className="font-semibold text-soft">{e.title}</div>
                         <div className="text-[11px] text-muted">{e.id} · {e.category}</div>
                       </td>
-                      <td className="py-3 pr-4">
+                      <td className="py-3 pr-4 hidden md:table-cell">
                         <div className="inline-flex items-center gap-1.5 text-soft">
                           <MapPin className="h-3.5 w-3.5 text-royal" /> {e.city ?? "—"}
                         </div>
                         <div className="text-[11px] text-muted">{e.country ?? "—"}</div>
                       </td>
-                      <td className="py-3 pr-4">
+                      <td className="py-3 pr-4 hidden sm:table-cell">
                         {e.start_iso ? (
                           <>
                             <div className="inline-flex items-center gap-1.5 text-soft">
@@ -300,12 +300,12 @@ export default function Events() {
                           </>
                         ) : <span className="text-muted">—</span>}
                       </td>
-                      <td className="py-3 pr-4">
+                      <td className="py-3 pr-4 hidden xl:table-cell">
                         {sla ? <Badge tone={sla.tone}><Clock className="h-3 w-3" /> {sla.label}</Badge> : <span className="text-muted">—</span>}
                       </td>
-                      <td className="py-3 pr-4"><Badge tone={PRIORITY_TONE[e.priority]}>{e.priority}</Badge></td>
+                      <td className="py-3 pr-4 hidden lg:table-cell"><Badge tone={PRIORITY_TONE[e.priority]}>{e.priority}</Badge></td>
                       <td className="py-3 pr-4"><Badge tone={STATUS_TONE[e.status]}>{e.status}</Badge></td>
-                      <td className="py-3 pr-4"><Badge tone={ok ? "green" : "amber"}>{assigned} / {e.required_adjudicators}</Badge></td>
+                      <td className="py-3 pr-4 hidden md:table-cell"><Badge tone={ok ? "green" : "amber"}>{assigned} / {e.required_adjudicators}</Badge></td>
                       <td className="py-3 pr-4 text-right whitespace-nowrap">
                         <Link to={`/admin/events/${e.id}`} onClick={(ev) => ev.stopPropagation()} className="text-xs text-royal hover:underline mr-3">Open</Link>
                         <Link to="/admin/assignments" state={{ eventId: e.id }} onClick={(ev) => ev.stopPropagation()} className="text-xs text-royal hover:underline">Assign →</Link>

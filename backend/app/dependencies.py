@@ -3,6 +3,7 @@ from typing import Optional, AsyncGenerator
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -51,3 +52,31 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return user
+
+
+async def assert_attempt_access(attempt, user: User, db: AsyncSession) -> None:
+    """Authorize ``user`` for ``attempt``.
+
+    Allowed: admin (any), the owning organizer, or an adjudicator assigned to
+    the attempt's event. Raises 403 otherwise.
+    """
+    if user.role == "admin":
+        return
+    if user.role == "organizer" and attempt.organizer_id == user.id:
+        return
+    if user.role == "adjudicator" and attempt.event_id:
+        from app.models.admin import AdminAdjudicator, AdminAssignment
+
+        adj = (await db.execute(
+            select(AdminAdjudicator).where(AdminAdjudicator.user_id == user.id)
+        )).scalar_one_or_none()
+        if adj:
+            assigned = (await db.execute(
+                select(AdminAssignment).where(
+                    AdminAssignment.adjudicator_id == adj.id,
+                    AdminAssignment.event_id == attempt.event_id,
+                )
+            )).scalar_one_or_none()
+            if assigned:
+                return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized for this attempt")

@@ -12,6 +12,7 @@ from app.models.statement import Statement
 from app.models.user import User
 from app.schemas.statement import StatementSubmit, StatementOut
 from app.services.auth_service import verify_magic_link_token
+from app.services.notification_service import notify
 
 router = APIRouter(prefix="/invitations", tags=["invitations"])
 
@@ -71,6 +72,18 @@ async def submit_witness_statement(
     db.add(statement)
     witness.status = "completed"
     witness.completed_at = datetime.now(timezone.utc)
+
+    # Notify the attempt's organizer.
+    attempt = (await db.execute(select(Attempt).where(Attempt.id == witness.attempt_id))).scalar_one_or_none()
+    if attempt and attempt.organizer_id:
+        await notify(
+            db,
+            user_id=attempt.organizer_id,
+            title=f"Witness statement submitted",
+            detail=f"{witness.full_name} submitted their statement for {attempt.record_title}.",
+            tone="success",
+            link=f"/organizer/submissions",
+        )
     await db.commit()
     await db.refresh(statement)
 

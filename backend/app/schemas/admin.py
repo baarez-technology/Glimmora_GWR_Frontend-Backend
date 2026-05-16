@@ -8,6 +8,7 @@ class AdminEventBase(BaseModel):
     title: str
     category: str = "Other"
     organizer: Optional[str] = None
+    organizer_user_id: Optional[str] = None
     venue: Optional[str] = None
     city: Optional[str] = None
     country: Optional[str] = None
@@ -32,6 +33,7 @@ class AdminEventUpdate(BaseModel):
     title: Optional[str] = None
     category: Optional[str] = None
     organizer: Optional[str] = None
+    organizer_user_id: Optional[str] = None
     venue: Optional[str] = None
     city: Optional[str] = None
     country: Optional[str] = None
@@ -158,6 +160,17 @@ class CheckInOut(BaseModel):
     country: Optional[str] = None
     travel_status: str
     note: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
+# ---------- Users (admin-readable user roster) ----------
+class AdminUserOut(BaseModel):
+    id: str
+    email: EmailStr
+    role: str
+    full_name: Optional[str] = None
+    is_active: bool = True
+    created_at: datetime
     model_config = {"from_attributes": True}
 
 

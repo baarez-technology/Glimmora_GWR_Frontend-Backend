@@ -9,6 +9,7 @@ class AttemptCreate(BaseModel):
     description: Optional[str] = None
     attempt_date: Optional[str] = None
     location: Optional[str] = None
+    event_id: Optional[str] = None
 
 
 class AttemptUpdate(BaseModel):
@@ -18,6 +19,7 @@ class AttemptUpdate(BaseModel):
     attempt_date: Optional[str] = None
     location: Optional[str] = None
     status: Optional[str] = None
+    event_id: Optional[str] = None
 
 
 class AttemptOut(BaseModel):
@@ -25,6 +27,7 @@ class AttemptOut(BaseModel):
     application_ref: str
     record_title: str
     organizer_id: str
+    event_id: Optional[str] = None
     status: str
     category: Optional[str] = None
     description: Optional[str] = None

@@ -3,22 +3,25 @@ import type {
   Attempt, AuditLogEntry, Clarification, Evidence, Notification,
   OverviewStats, SearchResult, SubmissionHealth, Witness,
 } from "./types";
+import type { AdminEvent } from "./admin";
 
 /** /attempts */
 export const attemptsApi = {
   list: () => api.get<Attempt[]>("/attempts"),
   get: (id: string) => api.get<Attempt>(`/attempts/${id}`),
-  create: (body: { record_title: string; category?: string; description?: string; attempt_date?: string; location?: string }) =>
+  create: (body: { record_title: string; category?: string; description?: string; attempt_date?: string; location?: string; event_id?: string }) =>
     api.post<Attempt>("/attempts", body),
-  update: (id: string, body: Partial<{ record_title: string; category: string; description: string; attempt_date: string; location: string; status: string }>) =>
+  update: (id: string, body: Partial<{ record_title: string; category: string; description: string; attempt_date: string; location: string; status: string; event_id: string }>) =>
     api.patch<Attempt>(`/attempts/${id}`, body),
   health: (id: string) => api.get<SubmissionHealth>(`/attempts/${id}/health`),
+  /** Events the logged-in organizer can file an attempt against. */
+  availableEvents: () => api.get<AdminEvent[]>("/attempts/events/available"),
 };
 
 /** /attempts/{id}/witnesses */
 export const witnessesApi = {
   list: (attemptId: string) => api.get<Witness[]>(`/attempts/${attemptId}/witnesses`),
-  create: (attemptId: string, body: { role: string; full_name: string; email: string; phone?: string; organisation?: string; expertise?: string }) =>
+  create: (attemptId: string, body: { role: string; full_name: string; email: string; phone?: string; organisation?: string; expertise?: string; send_email?: boolean }) =>
     api.post<Witness>(`/attempts/${attemptId}/witnesses`, body),
   bulkCreate: (attemptId: string, witnesses: Array<{ role: string; full_name: string; email: string; phone?: string; organisation?: string; expertise?: string }>) =>
     api.post<Witness[]>(`/attempts/${attemptId}/witnesses/bulk`, { witnesses }),
@@ -26,6 +29,13 @@ export const witnessesApi = {
     api.patch<Witness>(`/attempts/${attemptId}/witnesses/${witnessId}`, body),
   invite: (attemptId: string, witnessId: string) =>
     api.post<Witness>(`/attempts/${attemptId}/witnesses/${witnessId}/invite`),
+  review: (attemptId: string, witnessId: string, body: { decision: "approved" | "rejected" | "clarification_requested"; note?: string }) =>
+    api.post<Witness>(`/attempts/${attemptId}/witnesses/${witnessId}/review`, body),
+};
+
+/** /attempts/{id}/statements */
+export const statementsApi = {
+  list: (attemptId: string) => api.get<Array<{ id: string; attempt_id: string; witness_id: string | null; kind: string; fields: Record<string, unknown> | null; submitted_at: string | null; created_at: string }>>(`/attempts/${attemptId}/statements`),
 };
 
 /** /attempts/{id}/evidence */

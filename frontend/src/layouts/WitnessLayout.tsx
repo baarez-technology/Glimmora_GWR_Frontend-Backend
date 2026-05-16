@@ -33,7 +33,7 @@ export default function WitnessLayout() {
 
   return (
     <div className="min-h-screen bg-canvas flex flex-col">
-      <header className="sticky top-0 z-20 h-16 bg-white border-b border-line flex items-center px-6 lg:px-10">
+      <header className="sticky top-0 z-20 h-16 bg-white border-b border-line flex items-center px-4 sm:px-6 lg:px-10">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-lg bg-royal flex items-center justify-center">
             <Trophy className="h-5 w-5 text-white" />

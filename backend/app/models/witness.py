@@ -25,6 +25,11 @@ class Witness(Base):
     token: Mapped[Optional[str]] = mapped_column(String(500), unique=True, nullable=True, index=True)
     invited_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Adjudicator decision: approved | rejected | clarification_requested | NULL
+    decision: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    decision_note: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
+    reviewer_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     attempt: Mapped["Attempt"] = relationship("Attempt", back_populates="witnesses")

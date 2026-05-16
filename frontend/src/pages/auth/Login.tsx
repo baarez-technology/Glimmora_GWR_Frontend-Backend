@@ -131,12 +131,12 @@ export default function Login() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="w-full max-w-md panel p-8 ring-gold animate-fadeIn">
+    <form onSubmit={onSubmit} className="w-full max-w-md panel p-5 sm:p-8 ring-gold animate-fadeIn">
       <div className="text-[10px] uppercase tracking-[0.2em] text-royal font-bold mb-2">Secure Sign In</div>
-      <h2 className="text-2xl font-bold tracking-tight text-soft">Witness &amp; Adjudicator Portal</h2>
+      <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-soft">Witness &amp; Adjudicator Portal</h2>
       <p className="text-sm text-muted mt-1">Sign in to your authorized GWR verification workspace.</p>
 
-      <div className="mt-6 grid grid-cols-4 gap-2">
+      <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-2">
         {ROLES.map((r) => {
           const active = role === r.key;
           return (

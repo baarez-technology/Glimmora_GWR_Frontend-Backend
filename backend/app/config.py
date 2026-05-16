@@ -22,7 +22,20 @@ class Settings(BaseSettings):
     S3_BUCKET: str = "gwr-evidence"
 
     SENDGRID_API_KEY: str = ""
+    BREVO_API_KEY: str = ""
     EMAIL_FROM: str = "noreply@glimmora.com"
+
+    # Generic SMTP (preferred — works with any free provider: Gmail, Brevo,
+    # Outlook, Zoho, Mailtrap, etc.). When SMTP_HOST is set, SMTP is used in
+    # preference to SendGrid. Leave SMTP_HOST blank to fall back to SendGrid /
+    # dev-log mode.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_USE_TLS: bool = True          # STARTTLS on port 587
+    SMTP_USE_SSL: bool = False         # Implicit TLS (e.g. port 465)
+    SMTP_FROM_NAME: str = "GWR Records"
 
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""

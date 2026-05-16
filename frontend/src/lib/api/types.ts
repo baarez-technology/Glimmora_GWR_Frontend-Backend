@@ -29,6 +29,7 @@ export interface Attempt {
   application_ref: string;
   record_title: string;
   organizer_id: string;
+  event_id: string | null;
   status: string;
   category: string | null;
   description: string | null;
@@ -57,8 +58,13 @@ export interface Witness {
   phone: string | null;
   organisation: string | null;
   expertise: string | null;
+  token: string | null;
   invited_at: string | null;
   completed_at: string | null;
+  decision: string | null;
+  decision_note: string | null;
+  reviewer_id: string | null;
+  reviewed_at: string | null;
   created_at: string;
 }
 

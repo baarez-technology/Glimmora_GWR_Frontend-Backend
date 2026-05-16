@@ -4,7 +4,21 @@ import { Trophy, ShieldCheck, ScrollText, Users } from "lucide-react";
 export default function AuthLayout() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-canvas">
-      <aside className="relative hidden lg:flex flex-col justify-between p-12 w-1/2 overflow-hidden bg-gradient-to-br from-royal to-royal-400 text-white">
+      {/* Mobile/tablet branding header */}
+      <header className="lg:hidden relative overflow-hidden bg-gradient-to-br from-royal to-royal-400 text-white p-5 sm:p-7">
+        <div className="absolute -top-16 -left-16 h-48 w-48 rounded-full bg-white/20 blur-3xl" />
+        <div className="absolute -bottom-16 -right-16 h-48 w-48 rounded-full bg-gold/25 blur-3xl" />
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-white text-royal flex items-center justify-center shadow-panel">
+            <Trophy className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-[0.22em] text-white/85">Guinness World Records</div>
+            <div className="font-bold text-sm sm:text-base truncate">Witness & Adjudicator Portal</div>
+          </div>
+        </div>
+      </header>
+      <aside className="relative hidden lg:flex flex-col justify-between p-8 xl:p-12 w-1/2 overflow-hidden bg-gradient-to-br from-royal to-royal-400 text-white">
         <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-white/30 blur-3xl" />
         <div className="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-gold/25 blur-3xl" />
         <div className="relative z-10 flex items-center gap-3">
@@ -51,7 +65,7 @@ export default function AuthLayout() {
           &copy; {new Date().getFullYear()} Guinness World Records Limited &middot; Confidential verification system
         </div>
       </aside>
-      <main className="flex-1 flex items-center justify-center p-6 bg-white">
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-6 bg-white">
         <Outlet />
       </main>
     </div>

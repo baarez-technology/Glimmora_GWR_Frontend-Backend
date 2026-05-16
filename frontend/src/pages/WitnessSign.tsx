@@ -10,7 +10,17 @@ import {
 } from "lucide-react";
 import { Badge, Button, Card, Input, PageHeader } from "@/components/ui";
 import { witnesses, attemptMeta } from "@/mock-data";
+import { api } from "@/lib/api";
 import type { Witness } from "@/types";
+
+interface BackendInvitation {
+  witness_id: string;
+  attempt_id: string;
+  attempt_title: string;
+  witness_name: string;
+  witness_role: string;
+  status: string;
+}
 
 const RULES_OBSERVED = [
   "Rule 1: hackathon lasted minimum 24 hours of continuous development",
@@ -91,7 +101,39 @@ function useSignaturePad() {
 
 export default function WitnessSign() {
   const { token } = useParams<{ token: string }>();
-  const witness = witnesses.find((w) => w.token === token) as Witness | undefined;
+  const localWitness = witnesses.find((w) => w.token === token) as Witness | undefined;
+  const [remote, setRemote] = useState<BackendInvitation | null>(null);
+  const [resolving, setResolving] = useState(!localWitness);
+  const [resolveError, setResolveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (localWitness || !token) { setResolving(false); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const inv = await api.get<BackendInvitation>(`/invitations/${token}`);
+        if (!cancelled) setRemote(inv);
+      } catch (e: any) {
+        if (!cancelled) setResolveError(e?.message ?? "Invalid or expired invitation");
+      } finally {
+        if (!cancelled) setResolving(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token, localWitness]);
+
+  const witness: Witness | undefined = localWitness ?? (remote ? {
+    id: remote.witness_id,
+    firstName: remote.witness_name.split(" ")[0] ?? "",
+    lastName: remote.witness_name.split(" ").slice(1).join(" ") ?? "",
+    email: "",
+    organisation: "",
+    expertise: "",
+    role: (remote.witness_role as Witness["role"]) ?? "independent",
+    status: (remote.status === "completed" ? "completed" : remote.status === "invited" ? "in-progress" : "pending") as Witness["status"],
+    token: token!,
+  } as Witness : undefined);
+
   const { canvasRef, hasInk, clear, dataUrl } = useSignaturePad();
 
   const [form, setForm] = useState({
@@ -108,6 +150,18 @@ export default function WitnessSign() {
     willing: witness?.willingToBeContacted ?? true,
   });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  if (resolving) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Card className="text-center max-w-md">
+          <h2 className="font-bold text-lg">Verifying invitation…</h2>
+        </Card>
+      </div>
+    );
+  }
 
   if (!witness) {
     return (
@@ -116,7 +170,7 @@ export default function WitnessSign() {
           <Trophy className="h-8 w-8 text-royal mx-auto mb-3" />
           <h2 className="font-bold text-lg">Invitation not found</h2>
           <p className="text-sm text-muted mt-1">
-            This link may have expired. Please contact the record organiser to receive a new signing invitation.
+            {resolveError ?? "This link may have expired. Please contact the record organiser to receive a new signing invitation."}
           </p>
         </Card>
       </div>
@@ -131,13 +185,34 @@ export default function WitnessSign() {
         : [...f.rulesObserved, r],
     }));
 
-  const submit = () => {
+  const submit = async () => {
     if (!hasInk) {
       alert("A handwritten signature is required.");
       return;
     }
-    const _signature = dataUrl(); // would be persisted server-side
-    setSubmitted(true);
+    if (!token) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await api.post(`/invitations/${token}/statement`, {
+        fields: {
+          declaration: form.declaration,
+          expertise: form.expertise,
+          telephone: form.telephone,
+          nationality: form.nationality,
+          presentTimes: form.presentTimes,
+          finalMeasurement: form.finalMeasurement,
+          rulesObserved: form.rulesObserved,
+          willingToBeContacted: form.willing,
+        },
+        signature_png: dataUrl(),
+      });
+      setSubmitted(true);
+    } catch (e: any) {
+      setSubmitError(e?.message ?? "Failed to submit statement");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -173,20 +248,20 @@ export default function WitnessSign() {
 
       <Card className="!p-0 overflow-hidden">
         {/* Header band */}
-        <div className="bg-blue-shine text-white px-6 py-5 flex items-center gap-4">
-          <div className="h-10 w-10 rounded-lg bg-white/15 flex items-center justify-center">
+        <div className="bg-blue-shine text-white px-4 sm:px-6 py-4 sm:py-5 flex flex-wrap items-center gap-3 sm:gap-4">
+          <div className="h-10 w-10 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
             <Trophy className="h-6 w-6 text-gold" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[10px] uppercase tracking-[0.22em] opacity-80">Guinness World Records</div>
-            <div className="font-bold text-lg truncate">{attemptMeta.recordTitle}</div>
-            <div className="text-[12px] opacity-80">App ref: {attemptMeta.applicationRef}</div>
+            <div className="font-bold text-base sm:text-lg truncate">{attemptMeta.recordTitle}</div>
+            <div className="text-[12px] opacity-80 truncate">App ref: {attemptMeta.applicationRef}</div>
           </div>
           <Badge tone="gold"><Sparkles className="h-3 w-3" /> Digital signing</Badge>
         </div>
 
         {/* Form */}
-        <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
           <section className="space-y-4">
             <div>
               <h3 className="font-semibold text-sm">1) Declaration of independence</h3>
@@ -203,10 +278,10 @@ export default function WitnessSign() {
 
             <div>
               <h3 className="font-semibold text-sm">2) Contact details</h3>
-              <div className="grid grid-cols-2 gap-2 mt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
                 <Input value={witness.firstName} disabled />
                 <Input value={witness.lastName} disabled />
-                <Input value={witness.email} disabled className="col-span-2" />
+                <Input value={witness.email} disabled className="sm:col-span-2" />
                 <Input
                   placeholder="Telephone"
                   value={form.telephone}
@@ -261,7 +336,7 @@ export default function WitnessSign() {
               <h3 className="font-semibold text-sm">6) Attempt location</h3>
               <div className="grid grid-cols-1 gap-2 mt-2">
                 <Input value={attemptMeta.venue} disabled />
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Input value={attemptMeta.city} disabled />
                   <Input value={attemptMeta.country} disabled />
                 </div>
@@ -312,10 +387,14 @@ export default function WitnessSign() {
 
         <div className="bg-canvas px-6 py-4 flex items-center justify-between border-t border-line">
           <div className="text-[11px] text-muted">
-            By submitting, a Guinness-compliant PDF will be auto-generated and attached to the submission package.
+            {submitError ? (
+              <span className="text-rose-700">{submitError}</span>
+            ) : (
+              <>By submitting, a Guinness-compliant PDF will be auto-generated and attached to the submission package.</>
+            )}
           </div>
-          <Button variant="gold" onClick={submit}>
-            Submit witness statement
+          <Button variant="gold" onClick={submit} disabled={submitting}>
+            {submitting ? "Submitting…" : "Submit witness statement"}
           </Button>
         </div>
       </Card>

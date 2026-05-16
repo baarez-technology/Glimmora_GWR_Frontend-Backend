@@ -24,6 +24,7 @@ export default function Submissions() {
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState({
+    event_id: "",
     record_title: "",
     category: "",
     description: "",
@@ -37,6 +38,13 @@ export default function Submissions() {
     refetchOnWindowFocus: false,
   });
 
+  const { data: availableEvents = [] } = useQuery({
+    queryKey: ["attempts", "available-events"],
+    queryFn: () => attemptsApi.availableEvents(),
+    enabled: creating,
+    refetchOnWindowFocus: false,
+  });
+
   const create = useMutation({
     mutationFn: () => attemptsApi.create({
       record_title: draft.record_title,
@@ -44,11 +52,12 @@ export default function Submissions() {
       description: draft.description || undefined,
       attempt_date: draft.attempt_date || undefined,
       location: draft.location || undefined,
+      event_id: draft.event_id || undefined,
     }),
     onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: ["attempts"] });
       setCreating(false);
-      setDraft({ record_title: "", category: "", description: "", attempt_date: "", location: "" });
+      setDraft({ event_id: "", record_title: "", category: "", description: "", attempt_date: "", location: "" });
       toast({ title: "Submission created", description: created.application_ref, tone: "success" });
     },
     onError: (e) => {
@@ -149,6 +158,32 @@ export default function Submissions() {
         }
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="GWR event (assigned by admin)" full>
+            <select
+              className="input"
+              value={draft.event_id}
+              onChange={(e) => {
+                const id = e.target.value;
+                const ev = availableEvents.find((x) => x.id === id);
+                setDraft((d) => ({
+                  ...d,
+                  event_id: id,
+                  // Auto-fill blanks from the chosen event
+                  record_title: d.record_title || (ev?.title ?? ""),
+                  category: d.category || (ev?.category ?? ""),
+                  location: d.location || [ev?.venue, ev?.city, ev?.country].filter(Boolean).join(", "),
+                  attempt_date: d.attempt_date || (ev?.start_iso?.slice(0, 10) ?? ""),
+                }));
+              }}
+            >
+              <option value="">— File a standalone attempt (no event) —</option>
+              {availableEvents.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.id} · {ev.title} · {ev.city || "—"}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="Record title" full>
             <input
               className="input"

@@ -13,7 +13,7 @@ export default function WorkflowStepper({
       {steps.map((s, i) => {
         const state = i < current ? "done" : i === current ? "active" : "pending";
         return (
-          <li key={s.label} className="flex-1 min-w-[180px]">
+          <li key={s.label} className="flex-1 min-w-[140px] sm:min-w-[180px]">
             <div className={cn(
               "panel p-4 h-full transition",
               state === "active" && "border-royal/40 shadow-glow",
