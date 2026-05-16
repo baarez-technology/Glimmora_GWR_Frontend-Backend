@@ -64,6 +64,11 @@ async def assert_attempt_access(attempt, user: User, db: AsyncSession) -> None:
         return
     if user.role == "organizer" and attempt.organizer_id == user.id:
         return
+    # Once submitted to GWR, any adjudicator may pick the attempt up off the queue.
+    if user.role == "adjudicator" and attempt.status in (
+        "submitted", "review", "approved", "rejected", "ratified",
+    ):
+        return
     if user.role == "adjudicator" and attempt.event_id:
         from app.models.admin import AdminAdjudicator, AdminAssignment
 

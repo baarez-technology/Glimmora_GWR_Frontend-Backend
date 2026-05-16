@@ -80,6 +80,8 @@ async def resolve_invitation(token: str, db: AsyncSession = Depends(get_db)):
         "witness_organisation": witness.organisation,
         "witness_expertise": witness.expertise,
         "status": witness.status,
+        "decision": witness.decision,
+        "decision_note": witness.decision_note,
     }
 
 
@@ -114,6 +116,13 @@ async def submit_witness_statement(
     db.add(statement)
     witness.status = "completed"
     witness.completed_at = datetime.now(timezone.utc)
+    # If this is a re-submission after the adjudicator requested clarification,
+    # clear the prior decision so the witness reappears as a fresh review.
+    if witness.decision == "clarification_requested":
+        witness.decision = None
+        witness.decision_note = None
+        witness.reviewer_id = None
+        witness.reviewed_at = None
 
     # Notify the attempt's organizer.
     attempt = (await db.execute(select(Attempt).where(Attempt.id == witness.attempt_id))).scalar_one_or_none()

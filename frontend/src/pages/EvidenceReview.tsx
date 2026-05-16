@@ -81,12 +81,12 @@ export default function EvidenceReview() {
             <button className="h-16 w-16 rounded-full bg-royal text-white flex items-center justify-center shadow-panel hover:scale-105 transition">
               <Play className="h-6 w-6" />
             </button>
-            <div className="absolute top-3 left-3 chip !bg-white/95">{focused.name}</div>
+            <div className="absolute top-3 left-3 chip !bg-white/95">{focused?.name ?? "No evidence selected"}</div>
             <div className="absolute top-3 right-3"><Badge tone="blue">AI verified 94%</Badge></div>
             <div className="absolute inset-x-3 bottom-3">
               <Progress value={32} tone="blue" />
               <div className="flex justify-between text-[11px] text-muted mt-1">
-                <span>00:32:14</span><span>{focused.duration}</span>
+                <span>00:32:14</span><span>{focused?.duration ?? "—"}</span>
               </div>
             </div>
           </div>
@@ -107,7 +107,7 @@ export default function EvidenceReview() {
             <Row k="Device" v="DJI Mavic 3 · 4K · 50fps" />
             <Row k="Codec" v="HEVC · 80 Mbps" />
             <Row k="Geo" v="28.5562° N, 77.1000° E" />
-            <Row k="Size" v={formatBytes(focused.size)} />
+            <Row k="Size" v={focused ? formatBytes(focused.size) : "—"} />
             <div className="mt-3 pt-3 border-t border-line">
               <div className="text-[10px] uppercase tracking-wider text-muted mb-1">Extracted Timestamps</div>
               <div className="flex flex-wrap gap-1.5 text-[11px]">
@@ -125,7 +125,7 @@ export default function EvidenceReview() {
             <div className="mt-3 pt-3 border-t border-line">
               <div className="text-[10px] uppercase tracking-wider text-muted mb-1">Tags</div>
               <div className="flex flex-wrap gap-1.5">
-                {focused.tags.concat(["aerial", "scene-A", "verified"]).map((t) => (
+                {(focused?.tags ?? []).concat(["aerial", "scene-A", "verified"]).map((t) => (
                   <span key={t} className="chip">{t}</span>
                 ))}
               </div>

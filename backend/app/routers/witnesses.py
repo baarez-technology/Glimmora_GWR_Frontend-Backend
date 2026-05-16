@@ -1,6 +1,9 @@
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import List
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -14,7 +17,11 @@ from app.models.user import User
 from app.models.witness import Witness
 from app.schemas.witness import WitnessCreate, WitnessBulkCreate, WitnessUpdate, WitnessOut, WitnessReview
 from app.services.auth_service import create_magic_link_token
-from app.services.email_service import send_magic_link
+from app.services.email_service import (
+    send_magic_link,
+    send_witness_decision_email,
+    send_attempt_status_email,
+)
 from app.services.audit_service import write_audit
 from app.services.notification_service import notify
 
@@ -202,13 +209,113 @@ async def review_witness(
     witness.reviewed_at = datetime.now(timezone.utc)
     if body.decision == "rejected":
         witness.status = "rejected"
+    elif body.decision == "clarification_requested":
+        # Re-open the form for the witness — they need to update and re-submit.
+        witness.status = "invited"
+        witness.completed_at = None
     elif witness.status == "rejected":
-        # Adjudicator reversed a prior rejection (approve / request clarification).
-        # Restore status to "completed" so the witness reappears in normal queues.
+        # Adjudicator reversed a prior rejection. Restore to completed.
         witness.status = "completed"
     await db.commit()
     await db.refresh(witness)
     await write_audit(
         db, f"witness.{body.decision}", actor_id=user.id, target_type="witness", target_id=witness.id
     )
+
+    # Notify the witness of the adjudicator's decision (in-app + email).
+    attempt = (await db.execute(select(Attempt).where(Attempt.id == attempt_id))).scalar_one_or_none()
+    attempt_title = attempt.record_title if attempt else ""
+    decision_label = {
+        "approved": "approved",
+        "rejected": "rejected",
+        "clarification_requested": "flagged for clarification",
+    }.get(body.decision, body.decision)
+
+    witness_user = (await db.execute(
+        select(User).where(User.email.ilike(witness.email))
+    )).scalar_one_or_none()
+    if witness_user:
+        await notify(
+            db,
+            user_id=witness_user.id,
+            title=f"Your witness statement was {decision_label}",
+            detail=(body.note or f"An adjudicator {decision_label} your statement for {attempt_title}."),
+            tone="success" if body.decision == "approved" else "warning" if body.decision == "clarification_requested" else "error",
+            link="/witness",
+        )
+        await db.commit()
+
+    if witness.email:
+        try:
+            await send_witness_decision_email(
+                witness.email, witness.full_name, body.decision, attempt_title, body.note,
+                invite_token=witness.token,
+            )
+        except Exception:
+            logger.exception("send_witness_decision_email failed for %s", witness.email)
+
+    # ------------------------------------------------------------------
+    # Attempt-level rollup: derive attempt.status from witness decisions.
+    # Only runs once the organizer has formally submitted; never overrides
+    # a ratified attempt (ratification is terminal).
+    # ------------------------------------------------------------------
+    rollup_states = ("submitted", "review", "approved", "rejected")
+    if attempt and attempt.status in rollup_states:
+        siblings = (await db.execute(
+            select(Witness).where(Witness.attempt_id == attempt_id)
+        )).scalars().all()
+
+        decisions = [w.decision for w in siblings]
+        any_rejected = any(d == "rejected" for d in decisions) or any(w.status == "rejected" for w in siblings)
+        any_pending_clarif = any(w.decision == "clarification_requested" and w.status != "completed" for w in siblings)
+        all_decided = bool(siblings) and all(d in ("approved", "rejected") for d in decisions)
+        all_approved = bool(siblings) and all(d == "approved" for d in decisions)
+
+        new_status: str | None = None
+        if any_rejected:
+            new_status = "rejected"
+        elif all_approved:
+            new_status = "approved"
+        elif any_pending_clarif:
+            new_status = "review"
+
+        if new_status and attempt.status != new_status:
+            prev_status = attempt.status
+            attempt.status = new_status
+            await db.commit()
+            await write_audit(
+                db, f"attempt.status.{new_status}", actor_id=user.id,
+                target_type="attempt", target_id=attempt.id,
+            )
+
+            if attempt.organizer_id and new_status in ("approved", "rejected"):
+                summary = (
+                    f"All {len(siblings)} witnesses have been reviewed for "
+                    f"\"{attempt.record_title}\". Final outcome: {new_status}."
+                )
+                await notify(
+                    db,
+                    user_id=attempt.organizer_id,
+                    title=f"Attempt {new_status}",
+                    detail=summary,
+                    tone="success" if new_status == "approved" else "error",
+                    link="/organizer/submissions",
+                )
+                await db.commit()
+
+                organizer = (await db.execute(
+                    select(User).where(User.id == attempt.organizer_id)
+                )).scalar_one_or_none()
+                if organizer and organizer.email:
+                    try:
+                        await send_attempt_status_email(
+                            organizer.email,
+                            organizer.full_name or "Organizer",
+                            attempt.record_title,
+                            new_status,
+                            summary,
+                        )
+                    except Exception:
+                        logger.exception("send_attempt_status_email failed for %s", organizer.email)
+
     return witness

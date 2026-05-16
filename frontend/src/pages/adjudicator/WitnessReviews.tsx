@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  CheckCircle2, X, MessageSquareWarning, Search, Loader2, Mail, Pencil,
+  CheckCircle2, X, MessageSquareWarning, Search, Loader2, Mail, Pencil, Award,
 } from "lucide-react";
 import { Badge, Card, PageHeader, Button } from "@/components/ui";
 import { attemptsApi, witnessesApi, statementsApi } from "@/lib/api/resources";
@@ -198,6 +198,20 @@ export default function WitnessReviews() {
                   <Badge tone={decisionTone(selected)}>{decisionLabel(selected)}</Badge>
                 </div>
 
+                {selectedAttempt?.status === "approved" && (
+                  <RatifyBanner
+                    attemptId={selectedAttempt.id}
+                    onRatified={(updated) => {
+                      setAttempts((arr) => arr.map((a) => (a.id === updated.id ? updated : a)));
+                    }}
+                  />
+                )}
+                {selectedAttempt?.status === "ratified" && (
+                  <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm px-3 py-2 inline-flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" /> Attempt ratified — certificate has been issued to the organizer.
+                  </div>
+                )}
+
                 {selected.expertise && (
                   <div className="mt-3 text-sm text-soft"><span className="text-muted">Expertise:</span> {selected.expertise}</div>
                 )}
@@ -283,5 +297,34 @@ export default function WitnessReviews() {
         </div>
       )}
     </>
+  );
+}
+
+function RatifyBanner({ attemptId, onRatified }: { attemptId: string; onRatified: (a: Attempt) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const ratify = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const updated = await attemptsApi.ratify(attemptId);
+      onRatified(updated);
+    } catch (e: any) {
+      setErr(e?.message ?? "Could not ratify this attempt.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-4 rounded-lg border border-gold/40 bg-gold/[0.08] p-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-[11px] uppercase tracking-wider text-soft font-semibold">All witnesses approved</div>
+        <div className="text-sm text-soft mt-0.5">Ratify the record to issue the official certificate to the organizer.</div>
+        {err && <div className="text-xs text-rose-700 mt-1">{err}</div>}
+      </div>
+      <Button variant="gold" onClick={ratify} disabled={busy}>
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Award className="h-4 w-4" />} Ratify & issue certificate
+      </Button>
+    </div>
   );
 }

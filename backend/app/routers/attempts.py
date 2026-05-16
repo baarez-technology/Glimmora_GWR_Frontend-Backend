@@ -1,5 +1,8 @@
+import logging
 import uuid
 from typing import List
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -17,6 +20,13 @@ from app.schemas.attempt import AttemptCreate, AttemptUpdate, AttemptOut, Submis
 from app.schemas.admin import AdminEventOut
 from app.services.audit_service import write_audit
 from app.services.gwr_logic import compute_submission_health, AttemptHealthInput, compute_logbook, LogbookRow
+from app.services.email_service import (
+    send_certificate_ready_email,
+    send_attempt_submitted_to_organizer,
+    send_attempt_submitted_to_adjudicator,
+)
+from app.services.notification_service import notify
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/attempts", tags=["attempts"])
 
@@ -227,6 +237,14 @@ async def update_attempt(
         raise HTTPException(status_code=404, detail="Attempt not found")
     await assert_attempt_access(attempt, user, db)
 
+    # Once the organizer has handed the submission off to GWR, lock the record
+    # against further edits except by adjudicators / admins driving the review.
+    if attempt.status in ("submitted", "review", "approved", "rejected", "ratified") and user.role == "organizer":
+        raise HTTPException(
+            status_code=409,
+            detail=f"Attempt is locked for adjudication (status: {attempt.status}).",
+        )
+
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(attempt, field, value)
 
@@ -270,3 +288,204 @@ async def get_health(
         logbook_violations=logbook.violations,
     )
     return compute_submission_health(data)
+
+
+@router.post("/{attempt_id}/submit", response_model=AttemptOut)
+async def submit_attempt(
+    attempt_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Organizer hands the completed submission package over to GWR for adjudication."""
+    attempt = (await db.execute(select(Attempt).where(Attempt.id == attempt_id))).scalar_one_or_none()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    await assert_attempt_access(attempt, user, db)
+
+    if user.role not in ("organizer", "admin"):
+        raise HTTPException(status_code=403, detail="Only the attempt organizer can submit.")
+
+    if attempt.status in ("submitted", "review", "approved", "rejected", "ratified"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Attempt already submitted (status: {attempt.status}).",
+        )
+
+    # Lightweight readiness check: must have at least one witness and one evidence row.
+    witness_count = len((await db.execute(select(Witness).where(Witness.attempt_id == attempt_id))).scalars().all())
+    evidence_count = len((await db.execute(select(Evidence).where(Evidence.attempt_id == attempt_id))).scalars().all())
+    if witness_count == 0:
+        raise HTTPException(status_code=400, detail="Add at least one witness before submitting.")
+    if evidence_count == 0:
+        raise HTTPException(status_code=400, detail="Upload at least one piece of evidence before submitting.")
+
+    attempt.status = "submitted"
+    attempt.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(attempt)
+    await write_audit(db, "attempt.submitted", actor_id=user.id, target_type="attempt", target_id=attempt.id)
+
+    # Confirm to the organizer.
+    await notify(
+        db,
+        user_id=user.id,
+        title="Submission received by GWR",
+        detail=f"\"{attempt.record_title}\" has been submitted for adjudication. You'll be notified of the outcome.",
+        tone="success",
+        link="/organizer/submissions",
+    )
+    await db.commit()
+    if user.email:
+        try:
+            await send_attempt_submitted_to_organizer(
+                user.email, user.full_name or "Organizer",
+                attempt.record_title, attempt.application_ref, witness_count, evidence_count,
+            )
+        except Exception:
+            logger.exception("send_attempt_submitted_to_organizer failed for %s", user.email)
+
+    # Notify every adjudicator assigned to the parent event.
+    adjudicator_emails: list[tuple[str, str]] = []
+    if attempt.event_id:
+        assignments = (await db.execute(
+            select(AdminAssignment).where(AdminAssignment.event_id == attempt.event_id)
+        )).scalars().all()
+        for asn in assignments:
+            adj = (await db.execute(
+                select(AdminAdjudicator).where(AdminAdjudicator.id == asn.adjudicator_id)
+            )).scalar_one_or_none()
+            if not adj:
+                continue
+            if adj.user_id:
+                await notify(
+                    db,
+                    user_id=adj.user_id,
+                    title="New submission ready for review",
+                    detail=f"{user.full_name or 'Organizer'} submitted \"{attempt.record_title}\" — {witness_count} witnesses, {evidence_count} evidence items.",
+                    tone="info",
+                    link="/adjudicator/attempts",
+                )
+            if adj.email:
+                adjudicator_emails.append((adj.email, adj.name or "Adjudicator"))
+        await db.commit()
+
+    for adj_email, adj_name in adjudicator_emails:
+        try:
+            await send_attempt_submitted_to_adjudicator(
+                adj_email, adj_name, attempt.record_title, attempt.application_ref,
+                user.full_name or "Organizer", witness_count, evidence_count,
+            )
+        except Exception:
+            logger.exception("send_attempt_submitted_to_adjudicator failed for %s", adj_email)
+
+    return attempt
+
+
+@router.post("/{attempt_id}/recall", response_model=AttemptOut)
+async def recall_attempt(
+    attempt_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Organizer recalls a submission back to draft — only allowed while no adjudicator
+    decisions have been recorded yet (status must still be 'submitted')."""
+    attempt = (await db.execute(select(Attempt).where(Attempt.id == attempt_id))).scalar_one_or_none()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+    await assert_attempt_access(attempt, user, db)
+
+    if user.role not in ("organizer", "admin"):
+        raise HTTPException(status_code=403, detail="Only the organizer can recall this submission.")
+
+    if attempt.status != "submitted":
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Submission can only be recalled before adjudicators begin reviewing. "
+                f"Current status: {attempt.status}."
+            ),
+        )
+
+    # Belt-and-braces: if any witness has been decided already, refuse.
+    decided = (await db.execute(
+        select(Witness).where(
+            Witness.attempt_id == attempt_id,
+            Witness.decision.in_(("approved", "rejected", "clarification_requested")),
+        )
+    )).scalars().first()
+    if decided is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="At least one witness has already been reviewed — recall is no longer allowed.",
+        )
+
+    attempt.status = "draft"
+    attempt.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(attempt)
+    await write_audit(db, "attempt.recalled", actor_id=user.id, target_type="attempt", target_id=attempt.id)
+
+    await notify(
+        db,
+        user_id=user.id,
+        title="Submission recalled",
+        detail=f"\"{attempt.record_title}\" is back in draft. Edit and re-submit when ready.",
+        tone="info",
+        link="/organizer/submissions",
+    )
+    await db.commit()
+    return attempt
+
+
+@router.post("/{attempt_id}/ratify", response_model=AttemptOut)
+async def ratify_attempt(
+    attempt_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Adjudicator / admin ratifies a fully-approved attempt and triggers the certificate."""
+    if user.role not in ("adjudicator", "admin"):
+        raise HTTPException(status_code=403, detail="Adjudicator access required")
+
+    attempt = (await db.execute(select(Attempt).where(Attempt.id == attempt_id))).scalar_one_or_none()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Attempt not found")
+
+    if attempt.status != "approved":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Only approved attempts can be ratified (current status: {attempt.status}).",
+        )
+
+    attempt.status = "ratified"
+    attempt.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(attempt)
+    await write_audit(db, "attempt.ratified", actor_id=user.id, target_type="attempt", target_id=attempt.id)
+
+    if attempt.organizer_id:
+        await notify(
+            db,
+            user_id=attempt.organizer_id,
+            title="Record ratified — certificate ready",
+            detail=f"\"{attempt.record_title}\" has been officially ratified. Your certificate is ready in the organizer portal.",
+            tone="success",
+            link="/organizer/submissions",
+        )
+        await db.commit()
+
+        organizer = (await db.execute(
+            select(User).where(User.id == attempt.organizer_id)
+        )).scalar_one_or_none()
+        if organizer and organizer.email:
+            try:
+                await send_certificate_ready_email(
+                    organizer.email,
+                    organizer.full_name or "Organizer",
+                    attempt.record_title,
+                    attempt.application_ref,
+                )
+            except Exception:
+                logger.exception("send_certificate_ready_email failed for %s", organizer.email)
+
+    return attempt

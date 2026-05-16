@@ -23,6 +23,12 @@ export const attemptsApi = {
     api.get<Array<{ adjudicator_id: string; name: string; email: string; role: string; status: string }>>(
       `/attempts/events/${eventId}/adjudicators`
     ),
+  /** Adjudicator / admin finalises an approved attempt and issues the certificate. */
+  ratify: (id: string) => api.post<Attempt>(`/attempts/${id}/ratify`),
+  /** Organizer hands the completed submission package over to GWR for adjudication. */
+  submit: (id: string) => api.post<Attempt>(`/attempts/${id}/submit`),
+  /** Organizer recalls a submitted attempt back to draft (only before adjudication starts). */
+  recall: (id: string) => api.post<Attempt>(`/attempts/${id}/recall`),
 };
 
 /** /attempts/{id}/witnesses */
@@ -110,6 +116,8 @@ export const invitationsApi = {
     witness_organisation: string | null;
     witness_expertise: string | null;
     status: string;
+    decision: string | null;
+    decision_note: string | null;
   }>(`/invitations/${token}`),
 };
 

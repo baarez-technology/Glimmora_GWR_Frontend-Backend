@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, PageHeader, Badge, Button } from "@/components/ui";
 import { formatDate, relativeTime } from "@/lib/utils";
-import { Plus, ArrowRight, Loader2, AlertTriangle, FileText } from "lucide-react";
+import { Plus, ArrowRight, Loader2, AlertTriangle, FileText, Send, CheckCircle2, Undo2 } from "lucide-react";
 import { attemptsApi } from "@/lib/api/resources";
 import { ApiError } from "@/lib/api";
 import { useToast } from "@/components/Toaster";
@@ -19,7 +19,6 @@ function statusTone(s: string): "blue" | "green" | "gold" | "default" | "red" {
 }
 
 export default function Submissions() {
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const { toast } = useToast();
   const [creating, setCreating] = useState(false);
@@ -30,6 +29,51 @@ export default function Submissions() {
     description: "",
     attempt_date: "",
     location: "",
+  });
+
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [recallingId, setRecallingId] = useState<string | null>(null);
+
+  const recall = useMutation({
+    mutationFn: (id: string) => attemptsApi.recall(id),
+    onMutate: (id: string) => setRecallingId(id),
+    onSuccess: (updated) => {
+      toast({
+        title: "Submission recalled",
+        description: `"${updated.record_title}" is back in draft. Edit and re-submit when ready.`,
+        tone: "info",
+      });
+      qc.invalidateQueries({ queryKey: ["attempts"] });
+    },
+    onError: (e: unknown) => {
+      toast({
+        title: "Could not recall",
+        description: e instanceof ApiError ? e.message : "Please try again.",
+        tone: "danger",
+      });
+    },
+    onSettled: () => setRecallingId(null),
+  });
+
+  const submit = useMutation({
+    mutationFn: (id: string) => attemptsApi.submit(id),
+    onMutate: (id: string) => setSubmittingId(id),
+    onSuccess: (updated) => {
+      toast({
+        title: "Submission received",
+        description: `"${updated.record_title}" is now in the GWR adjudication queue.`,
+        tone: "success",
+      });
+      qc.invalidateQueries({ queryKey: ["attempts"] });
+    },
+    onError: (e: unknown) => {
+      toast({
+        title: "Could not submit",
+        description: e instanceof ApiError ? e.message : "Please try again.",
+        tone: "danger",
+      });
+    },
+    onSettled: () => setSubmittingId(null),
   });
 
   const { data: attempts = [], isLoading, isError, error, refetch } = useQuery({
@@ -129,11 +173,45 @@ export default function Submissions() {
                 <KV label="Attempt date">{a.attempt_date ? formatDate(a.attempt_date) : "—"}</KV>
                 <KV label="Created">{relativeTime(a.created_at)}</KV>
               </div>
-              <div className="mt-auto pt-4 flex items-center justify-between border-t border-line">
-                <Link to="/witnesses" className="text-xs text-royal hover:underline">Witnesses</Link>
-                <Link to="/evidence/upload" className="text-xs text-royal hover:underline inline-flex items-center gap-1">
-                  Manage <ArrowRight className="h-3 w-3" />
-                </Link>
+              <div className="mt-auto pt-4 space-y-3 border-t border-line">
+                <div className="flex items-center justify-between">
+                  <Link to="/witnesses" className="text-xs text-royal hover:underline">Witnesses</Link>
+                  <Link to="/evidence/upload" className="text-xs text-royal hover:underline inline-flex items-center gap-1">
+                    Manage <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </div>
+                {a.status === "draft" ? (
+                  <Button
+                    variant="gold"
+                    className="w-full"
+                    onClick={() => submit.mutate(a.id)}
+                    disabled={submittingId === a.id}
+                  >
+                    {submittingId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    Submit to GWR for adjudication
+                  </Button>
+                ) : a.status === "submitted" ? (
+                  <div className="space-y-2">
+                    <div className="rounded-lg bg-canvas border border-line px-3 py-2 text-[12px] text-soft inline-flex items-center gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      Submitted &middot; awaiting adjudication
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => recall.mutate(a.id)}
+                      disabled={recallingId === a.id}
+                    >
+                      {recallingId === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+                      Recall submission
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="rounded-lg bg-canvas border border-line px-3 py-2 text-[12px] text-soft inline-flex items-center gap-2">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    {a.status === "ratified" ? "Ratified — certificate issued" : `In adjudication · ${a.status}`}
+                  </div>
+                )}
               </div>
             </Card>
           ))}

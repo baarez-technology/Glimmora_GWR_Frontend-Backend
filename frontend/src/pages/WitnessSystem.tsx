@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { Badge, Button, Card, CardHeader, Input, PageHeader, Progress } from "@/components/ui";
 import { attemptsApi, witnessesApi } from "@/lib/api/resources";
+import { ApiError, clearTokens } from "@/lib/api";
+import { useAppDispatch, logout } from "@/redux/store";
 import type { Witness as ApiWitness, Attempt as ApiAttempt } from "@/lib/api/types";
 import { formatDate, formatTime } from "@/lib/utils";
 
@@ -75,6 +77,25 @@ function rolePill(role: WitnessRole) {
 
 export default function WitnessSystem() {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  function handleApiError(e: unknown, fallback: string): string {
+    if (e instanceof ApiError && e.status === 403) {
+      setAuthError(
+        "This action was blocked because your session belongs to a different account than the one currently displayed. " +
+        "This happens after using a witness magic link — your tokens were swapped. Please sign out and sign back in as the organiser."
+      );
+      return "Not authorized for this attempt — please sign in again.";
+    }
+    return (e as any)?.message ?? fallback;
+  }
+
+  function forceReSignIn() {
+    clearTokens();
+    dispatch(logout());
+    navigate("/login", { replace: true });
+  }
   const [attempts, setAttempts] = useState<ApiAttempt[]>([]);
   const [attemptId, setAttemptId] = useState<string>("");
   const [list, setList] = useState<ApiWitness[]>([]);
@@ -102,13 +123,14 @@ export default function WitnessSystem() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setError(null);
       try {
         const all = await attemptsApi.list();
         if (cancelled) return;
         setAttempts(all);
         if (all.length > 0 && !attemptId) setAttemptId(all[0].id);
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to load attempts");
+        if (!cancelled) setError(handleApiError(e, "Failed to load attempts"));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -121,11 +143,13 @@ export default function WitnessSystem() {
     if (!attemptId) return;
     let cancelled = false;
     (async () => {
+      setError(null);
+      setList([]);
       try {
         const ws = await witnessesApi.list(attemptId);
         if (!cancelled) setList(ws);
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to load witnesses");
+        if (!cancelled) setError(handleApiError(e, "Failed to load witnesses"));
       }
     })();
     return () => { cancelled = true; };
@@ -154,7 +178,7 @@ export default function WitnessSystem() {
       const updated = await witnessesApi.invite(attemptId, witnessId);
       setList((arr) => arr.map((w) => (w.id === witnessId ? updated : w)));
     } catch (e: any) {
-      setError(e?.message ?? "Failed to send invitation");
+      setError(handleApiError(e, "Failed to send invitation"));
     } finally {
       setPendingInviteId(null);
     }
@@ -162,7 +186,7 @@ export default function WitnessSystem() {
 
   const copyLink = (token: string | null) => {
     if (!token) return;
-    const url = `${window.location.origin}/witness/sign/${token}`;
+    const url = `${window.location.origin}/login?invite=${encodeURIComponent(token)}`;
     navigator.clipboard?.writeText(url).catch(() => {});
     setLinkCopied(token);
     setTimeout(() => setLinkCopied(null), 1600);
@@ -189,7 +213,7 @@ export default function WitnessSystem() {
       setDraft({ firstName: "", lastName: "", email: "", organisation: "", expertise: "", role: "independent" });
       setAdding(false);
     } catch (e: any) {
-      setError(e?.message ?? "Failed to create witness");
+      setError(handleApiError(e, "Failed to create witness"));
     } finally {
       setBusy(false);
     }
@@ -207,7 +231,16 @@ export default function WitnessSystem() {
         }
       />
 
-      {error && (
+      {authError && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-sm px-4 py-3 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-semibold mb-0.5">Session mismatch detected</div>
+            <div className="text-[13px] leading-snug">{authError}</div>
+          </div>
+          <Button variant="primary" onClick={forceReSignIn}>Sign in again</Button>
+        </div>
+      )}
+      {error && !authError && (
         <div className="rounded-lg border border-red-200 bg-red-50 text-red-800 text-sm px-3 py-2">{error}</div>
       )}
 
@@ -297,7 +330,7 @@ export default function WitnessSystem() {
                   ? w.role
                   : "independent";
               const { firstName, lastName } = splitName(w.full_name);
-              const inviteUrl = w.token ? `${window.location.origin}/witness/sign/${w.token}` : "";
+              const inviteUrl = w.token ? `${window.location.origin}/login?invite=${encodeURIComponent(w.token)}` : "";
               return (
                 <Card key={w.id} className="!p-5">
                   <div className="flex items-start justify-between gap-3">

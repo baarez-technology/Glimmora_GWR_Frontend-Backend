@@ -29,6 +29,8 @@ export default function WitnessPortal() {
   // If the witness opens a magic link (no prior redux state), hydrate from the backend.
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
+  const [adjudicatorDecision, setAdjudicatorDecision] = useState<string | null>(null);
+  const [adjudicatorNote, setAdjudicatorNote] = useState<string | null>(null);
   const [backendAttempt, setBackendAttempt] = useState<null | {
     id: string; title: string; venue: string; city: string; country: string;
     startISO: string; endISO: string; description: string;
@@ -42,6 +44,8 @@ export default function WitnessPortal() {
     invitationsApi.resolve(token)
       .then((r) => {
         if (cancelled) return;
+        setAdjudicatorDecision(r.decision ?? null);
+        setAdjudicatorNote(r.decision_note ?? null);
         const loc = r.attempt_location ?? "";
         const parts = loc.split(",").map((s) => s.trim()).filter(Boolean);
         const city = parts.length >= 2 ? parts[parts.length - 2] : parts[0] ?? "";
@@ -514,19 +518,22 @@ export default function WitnessPortal() {
               <div className="text-[10px] uppercase tracking-[0.22em] text-gold-300 font-bold">
                 You&rsquo;ve been invited to act as a witness
               </div>
-              <h1 className="text-2xl lg:text-[28px] font-bold mt-2 leading-tight">{attempt.title}</h1>
+              <h1 className="text-2xl lg:text-[28px] font-bold mt-2 leading-tight">{attempt.title || "Witness invitation"}</h1>
               <div className="text-sm text-white/85 mt-1">
-                Invited by <span className="font-semibold text-white">{attempt.organizer.split("—")[0].trim()}</span> &middot; {attempt.id}
+                Invited by <span className="font-semibold text-white">{(attempt.organizer ?? "GWR Records").split("—")[0].trim()}</span>
+                {attempt.id ? <> &middot; {attempt.id}</> : null}
               </div>
             </div>
-            <Badge tone="gold" className="!bg-white/15 !text-gold-300 !border-white/30">{attempt.category}</Badge>
+            {attempt.category && (
+              <Badge tone="gold" className="!bg-white/15 !text-gold-300 !border-white/30">{attempt.category}</Badge>
+            )}
           </div>
 
           <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <Meta Icon={MapPin}>{attempt.city}, {attempt.country}</Meta>
-            <Meta Icon={Calendar}>{formatDate(attempt.startISO)}</Meta>
-            <Meta Icon={Users}>{attempt.participantCount.toLocaleString()} participants</Meta>
-            <Meta Icon={BookOpen}>{attempt.guidelinesRef}</Meta>
+            <Meta Icon={MapPin}>{[attempt.city, attempt.country].filter(Boolean).join(", ") || "Location TBC"}</Meta>
+            <Meta Icon={Calendar}>{attempt.startISO ? formatDate(attempt.startISO) : "Date TBC"}</Meta>
+            <Meta Icon={Users}>{(attempt.participantCount ?? 0).toLocaleString()} participants</Meta>
+            <Meta Icon={BookOpen}>{attempt.guidelinesRef ?? "GWR official guidelines"}</Meta>
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -600,6 +607,50 @@ export default function WitnessPortal() {
           })}
         </ol>
       </Card>
+
+      {/* ADJUDICATOR FEEDBACK — shown when a prior submission was reviewed */}
+      {adjudicatorDecision && (
+        <Card
+          className={
+            adjudicatorDecision === "approved"
+              ? "!border-emerald-200 !bg-emerald-50/40"
+              : adjudicatorDecision === "rejected"
+                ? "!border-rose-200 !bg-rose-50/40"
+                : "!border-amber-200 !bg-amber-50/40"
+          }
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className={
+                "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 " +
+                (adjudicatorDecision === "approved"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : adjudicatorDecision === "rejected"
+                    ? "bg-rose-100 text-rose-700"
+                    : "bg-amber-100 text-amber-700")
+              }
+            >
+              <MessageSquareWarning className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-soft">
+                {adjudicatorDecision === "approved" && "Adjudicator approved your statement"}
+                {adjudicatorDecision === "rejected" && "Adjudicator rejected your statement"}
+                {adjudicatorDecision === "clarification_requested" &&
+                  "An adjudicator has requested a clarification — please update your statement below"}
+              </h3>
+              {adjudicatorNote && (
+                <p className="text-sm text-soft mt-1.5 italic">&ldquo;{adjudicatorNote}&rdquo;</p>
+              )}
+              {adjudicatorDecision === "clarification_requested" && (
+                <p className="text-[12px] text-muted mt-2">
+                  Edit any field below and re-submit. The adjudicator will be notified to re-review.
+                </p>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* CLARIFICATIONS — inline, only when present */}
       {myClarifications.length > 0 && (
